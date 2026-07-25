@@ -395,6 +395,13 @@ async function initSchema() {
   await ensureColumn('workflow_status', "TEXT NOT NULL DEFAULT 'REGISTRADO'", existingColumns);
   await ensureColumn('workflow_notes', 'TEXT', existingColumns);
   await ensureColumn('workflow_updated_at', 'DATETIME', existingColumns);
+  await ensureColumn('assigned_to', 'TEXT', existingColumns);
+  await ensureColumn('decision_tipo', 'TEXT', existingColumns);
+  await ensureColumn('decision_monto', 'REAL', existingColumns);
+  await ensureColumn('decision_observaciones', 'TEXT', existingColumns);
+  await ensureColumn('decision_at', 'DATETIME', existingColumns);
+  await ensureColumn('has_document', 'BOOLEAN NOT NULL DEFAULT 0', existingColumns);
+  await ensureColumn('created_by_ip', 'TEXT', existingColumns);
 
   await db.execute(`
     CREATE TABLE IF NOT EXISTS workflow_history (
