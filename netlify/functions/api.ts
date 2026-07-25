@@ -635,7 +635,11 @@ export const handler = async (event: any) => {
         `,
         args,
       });
-      return json(200, rs.rows);
+      const rows = rs.rows as any[];
+      const limit = clamp(toNumber(params.get('limit'), 50), 1, 200);
+      const total = rows.length;
+      const total_pages = Math.max(1, Math.ceil(total / limit));
+      return json(200, { data: rows, total, total_pages, page: 1 });
     }
 
     if (event.httpMethod === 'GET' && pathname === '/admin/insights') {
