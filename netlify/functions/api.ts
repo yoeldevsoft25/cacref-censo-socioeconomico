@@ -1,5 +1,6 @@
 import { createClient, type Client } from '@libsql/client/http';
 import { createHmac, timingSafeEqual } from 'crypto';
+import bcrypt from 'bcryptjs';
 
 type RiskLevel = 'BAJO' | 'MEDIO' | 'ALTO';
 type Recommendation = 'APROBADO_PRIORIDAD_ALTA' | 'APROBADO_CONDICIONAL' | 'REQUIERE_COMITE' | 'NO_ELEGIBLE';
@@ -32,7 +33,6 @@ const rawTursoUrl = process.env.TURSO_DATABASE_URL;
 const tursoToken = process.env.TURSO_AUTH_TOKEN;
 // Accept either the legacy plain ADMIN_PASS or any of the 4 role-specific bcrypt hashes.
 // If a *_PASS_HASH is provided, compare with bcrypt; otherwise fall back to plain ADMIN_PASS.
-import bcrypt from 'bcryptjs';
 const ADMIN_USER = process.env.ADMIN_USER || 'admin';
 const ADMIN_PLAIN_PASS = process.env.ADMIN_PASS || 'censo2025';
 const ADMIN_PASS_HASHES: string[] = [
