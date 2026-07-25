@@ -123,6 +123,7 @@ function canDo(role: string | undefined, required: string): boolean {
 }
 
 export default function AdminDashboard({ user }: { user?: { username: string; role: string; name: string } }) {
+  console.log('[DEBUG] AdminDashboard MOUNTED, user:', user);
   const userRole = user?.role;
   const canMakeDecision = canDo(userRole, 'vocal');
   const canSeeAudit = canDo(userRole, 'director');

@@ -1946,7 +1946,7 @@ async function startServer() {
     },
   }));
 
-  if (process.env.NODE_ENV !== 'production') {
+  if (process.env.NODE_ENV !== 'production' && process.env.USE_VITE_DEV === '1') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',

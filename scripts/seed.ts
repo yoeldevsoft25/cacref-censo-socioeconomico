@@ -118,8 +118,8 @@ const INSERT_SQL = `
     score, score_seniority, score_payment_capacity, score_affordability,
     score_health_need, score_cooperative_bonus, affordability_ratio,
     suggested_max_quota, risk_level, recommendation, priority_bucket,
-    workflow_status, workflow_updated_at
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    workflow_status, workflow_notes, workflow_updated_at
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `;
 
 const HISTORY_SQL = `
@@ -325,7 +325,7 @@ async function main() {
             ev.score, ev.score_seniority, ev.score_payment_capacity, ev.score_affordability,
             ev.score_health_need, ev.score_cooperative_bonus, ev.affordability_ratio,
             ev.suggested_max_quota, ev.risk_level, ev.recommendation, ev.priority_bucket,
-            status, now,
+            status, null, now,
           ],
         });
         newId = Number(result.lastInsertRowid ?? 0);
@@ -346,7 +346,7 @@ async function main() {
           ev.score, ev.score_seniority, ev.score_payment_capacity, ev.score_affordability,
           ev.score_health_need, ev.score_cooperative_bonus, ev.affordability_ratio,
           ev.suggested_max_quota, ev.risk_level, ev.recommendation, ev.priority_bucket,
-          status, now,
+          status, null, now,
         );
         newId = Number(result.lastInsertRowid);
         insertHistory.run(newId, null, status, 'Carga inicial masiva', now);

@@ -75,6 +75,7 @@ function Header() {
 }
 
 function ProtectedAdminRoute() {
+  console.log('[DEBUG] ProtectedAdminRoute RENDER');
   const [session, setSession] = useState<{ user: { username: string; role: string; name: string } } | null | 'loading'>('loading');
 
   useEffect(() => {
@@ -150,8 +151,8 @@ function ProtectedAdminRoute() {
         </button>
       </div>
       <Routes>
-        <Route path="/admin" element={<AdminDashboard user={session.user} />} />
-        <Route path="/auditoria" element={<AuditLogPage />} />
+        <Route path="auditoria" element={<AuditLogPage />} />
+        <Route path="*" element={<AdminDashboard user={session.user} />} />
       </Routes>
     </div>
   );
@@ -170,7 +171,7 @@ export default function App() {
             <Route path="/consulta" element={<ConsultationPage />} />
             <Route path="/transparencia" element={<TransparencyPage />} />
             <Route path="/admin/*" element={<ProtectedAdminRoute />} />
-            <Route path="/auditoria" element={<ProtectedAdminRoute />} />
+            <Route path="/auditoria/*" element={<ProtectedAdminRoute />} />
           </Routes>
         </main>
         <Footer />
