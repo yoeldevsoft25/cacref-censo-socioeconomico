@@ -408,11 +408,27 @@ async function initSchema() {
     )
   `);
 
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_target TEXT NOT NULL,
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      body TEXT,
+      target_type TEXT,
+      target_id TEXT,
+      actor TEXT,
+      read_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   await db.execute('CREATE INDEX IF NOT EXISTS idx_census_priority ON census_submissions(priority_bucket, score)');
   await db.execute('CREATE INDEX IF NOT EXISTS idx_census_risk_reco ON census_submissions(risk_level, recommendation)');
   await db.execute('CREATE INDEX IF NOT EXISTS idx_census_created_at ON census_submissions(created_at)');
   await db.execute('CREATE INDEX IF NOT EXISTS idx_history_submission ON workflow_history(submission_id, changed_at)');
   await db.execute('CREATE INDEX IF NOT EXISTS idx_census_workflow_status ON census_submissions(workflow_status)');
+  await db.execute('CREATE INDEX IF NOT EXISTS idx_notif_user ON notifications(user_target, created_at)');
 
   initialized = true;
 }
@@ -673,6 +689,45 @@ export const handler = async (event: any) => {
         args: [id],
       });
       return json(200, rs.rows);
+    }
+
+    if (event.httpMethod === 'GET' && pathname === '/admin/notifications') {
+      if (!isAdmin) return json(401, { error: 'No autorizado' });
+      const params = new URL(event.rawUrl).searchParams;
+      const limit = clamp(toNumber(params.get('limit'), 20), 1, 100);
+      const rows = await db.execute({
+        sql: `SELECT id, type, title, body, target_type, target_id, actor, read_at, created_at
+              FROM notifications
+              WHERE user_target IN ('all', ?)
+              ORDER BY created_at DESC
+              LIMIT ?`,
+        args: [ADMIN_USER, limit],
+      });
+      const unreadRs = await db.execute({
+        sql: `SELECT COUNT(*) as c FROM notifications WHERE user_target IN ('all', ?) AND read_at IS NULL`,
+        args: [ADMIN_USER],
+      });
+      return json(200, { data: rows.rows, unread: Number((unreadRs.rows[0] as any)?.c || 0) });
+    }
+
+    if (event.httpMethod === 'PATCH' && /^\/admin\/notifications\/\d+\/read$/.test(pathname)) {
+      if (!isAdmin) return json(401, { error: 'No autorizado' });
+      const id = Number(pathname.split('/')[3]);
+      if (!id) return json(400, { error: 'Id invalido' });
+      await db.execute({
+        sql: 'UPDATE notifications SET read_at = ? WHERE id = ?',
+        args: [new Date().toISOString(), id],
+      });
+      return json(200, { success: true });
+    }
+
+    if (event.httpMethod === 'PATCH' && pathname === '/admin/notifications/read-all') {
+      if (!isAdmin) return json(401, { error: 'No autorizado' });
+      await db.execute({
+        sql: `UPDATE notifications SET read_at = ? WHERE user_target IN ('all', ?) AND read_at IS NULL`,
+        args: [new Date().toISOString(), ADMIN_USER],
+      });
+      return json(200, { success: true });
     }
 
     if (event.httpMethod === 'GET' && pathname === '/admin/executive-summary') {
