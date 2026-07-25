@@ -1,5 +1,5 @@
 import { createClient, type Client } from '@libsql/client/http';
-import { createHmac, timingSafeEqual } from 'crypto';
+import { createHmac, timingSafeEqual, randomUUID } from 'crypto';
 import bcrypt from 'bcryptjs';
 
 type RiskLevel = 'BAJO' | 'MEDIO' | 'ALTO';
@@ -423,6 +423,32 @@ async function initSchema() {
     )
   `);
 
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS submission_files (
+      id TEXT PRIMARY KEY,
+      submission_id INTEGER,
+      file_type TEXT NOT NULL,
+      original_name TEXT NOT NULL,
+      stored_name TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      size_bytes INTEGER NOT NULL,
+      data BLOB,
+      uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (submission_id) REFERENCES census_submissions(id)
+    )
+  `);
+
+  // Idempotent: add data column to existing tables
+  try {
+    const cols = await db.execute('PRAGMA table_info(submission_files)');
+    const hasData = (cols.rows as any[]).some((c) => c.name === 'data');
+    if (!hasData) {
+      await db.execute('ALTER TABLE submission_files ADD COLUMN data BLOB');
+    }
+  } catch {
+    // ignore
+  }
+
   await db.execute('CREATE INDEX IF NOT EXISTS idx_census_priority ON census_submissions(priority_bucket, score)');
   await db.execute('CREATE INDEX IF NOT EXISTS idx_census_risk_reco ON census_submissions(risk_level, recommendation)');
   await db.execute('CREATE INDEX IF NOT EXISTS idx_census_created_at ON census_submissions(created_at)');
@@ -561,6 +587,104 @@ export const handler = async (event: any) => {
         has_user_object_in_me: true,
         has_admin_pass_hash_support: true,
       });
+    }
+
+    if (event.httpMethod === 'POST' && pathname === '/census/upload') {
+      try {
+        const contentType = String(event.headers?.['content-type'] || event.headers?.['Content-Type'] || '');
+        if (!contentType.includes('multipart/form-data')) {
+          return json(400, { error: 'Se requiere multipart/form-data.' });
+        }
+        const boundaryMatch = contentType.match(/boundary=(?:"([^"]+)"|([^;]+))/i);
+        if (!boundaryMatch) return json(400, { error: 'Boundary no encontrado.' });
+        const boundary = `--${boundaryMatch[1] || boundaryMatch[2]}`;
+
+        // Decode body (Netlify sends binary as base64)
+        let bodyBuf: Buffer;
+        if (event.isBase64Encoded && event.body) {
+          bodyBuf = Buffer.from(event.body, 'base64');
+        } else if (event.body) {
+          bodyBuf = Buffer.from(event.body, 'utf8');
+        } else {
+          return json(400, { error: 'Body vacio.' });
+        }
+        if (bodyBuf.length > 6 * 1024 * 1024) {
+          return json(413, { error: 'Payload demasiado grande' });
+        }
+
+        // Find the file part
+        const boundaryBuf = Buffer.from(boundary, 'utf8');
+        const parts: Buffer[] = [];
+        let start = bodyBuf.indexOf(boundaryBuf);
+        if (start < 0) return json(400, { error: 'Boundary no encontrado en body.' });
+        start += boundaryBuf.length;
+        while (start < bodyBuf.length) {
+          const next = bodyBuf.indexOf(boundaryBuf, start);
+          if (next < 0) break;
+          parts.push(bodyBuf.subarray(start, next));
+          start = next + boundaryBuf.length;
+        }
+
+        let fileBuffer: Buffer | null = null;
+        let fileName = 'archivo';
+        let mimeType = 'application/octet-stream';
+
+        for (const part of parts) {
+          const headerEnd = part.indexOf('\r\n\r\n');
+          if (headerEnd < 0) continue;
+          const rawHeaders = part.subarray(0, headerEnd).toString('utf8');
+          const content = part.subarray(headerEnd + 4, part.length - 2); // strip trailing \r\n
+          if (!rawHeaders.includes('name="file"')) continue;
+          const fnMatch = rawHeaders.match(/filename="([^"]+)"/);
+          const ctMatch = rawHeaders.match(/Content-Type:\s*([^\r\n]+)/i);
+          if (fnMatch) fileName = fnMatch[1];
+          if (ctMatch) mimeType = ctMatch[1].trim();
+          fileBuffer = content;
+          break;
+        }
+
+        if (!fileBuffer) return json(400, { error: 'No se encontro el archivo en el form.' });
+
+        const id = randomUUID();
+        const sizeBytes = fileBuffer.length;
+        await db.execute({
+          sql: 'INSERT INTO submission_files (id, file_type, original_name, stored_name, mime_type, size_bytes, data) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          args: [id, 'OTRO', fileName, id, mimeType, sizeBytes, fileBuffer],
+        });
+        return json(200, {
+          id,
+          originalName: fileName,
+          mimeType,
+          sizeBytes,
+          url: `/api/census/files/${id}`,
+        });
+      } catch (err) {
+        console.error('Upload error:', err);
+        return json(500, { error: 'Error al procesar el archivo.' });
+      }
+    }
+
+    if (event.httpMethod === 'GET' && /^\/census\/files\/[^/]+$/.test(pathname)) {
+      const id = pathname.split('/')[3];
+      const rs = await db.execute({
+        sql: 'SELECT mime_type, data, original_name FROM submission_files WHERE id = ?',
+        args: [id],
+      });
+      if (!rs.rows[0]) return json(404, { error: 'No encontrado' });
+      const row = rs.rows[0] as any;
+      const data = row.data;
+      if (data == null) return json(404, { error: 'Sin datos' });
+      const buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
+      return {
+        statusCode: 200,
+        headers: {
+          'Content-Type': String(row.mime_type || 'application/octet-stream'),
+          'Content-Disposition': `inline; filename="${row.original_name || id}"`,
+          'Cache-Control': 'public, max-age=31536000, immutable',
+        },
+        body: buf.toString('base64'),
+        isBase64Encoded: true,
+      };
     }
 
     if (event.httpMethod === 'POST' && pathname === '/census') {
