@@ -921,6 +921,8 @@ export const handler = async (event: any) => {
       const maxIngreso = params.get('maxIngreso');
       const recommendation = toText(params.get('recommendation'));
       const riskLevel = toText(params.get('riskLevel'));
+      const search = toText(params.get('search'));
+      const assignedTo = toText(params.get('assignedTo'));
 
       if (gerencia) {
         where.push('gerencia LIKE ?');
@@ -941,6 +943,15 @@ export const handler = async (event: any) => {
       if (riskLevel) {
         where.push('risk_level = ?');
         args.push(riskLevel);
+      }
+      if (search) {
+        where.push('(nombre_apellido LIKE ? OR cedula LIKE ? OR correo LIKE ? OR telefono LIKE ?)');
+        const s = `%${search}%`;
+        args.push(s, s, s, s);
+      }
+      if (assignedTo) {
+        where.push('assigned_to = ?');
+        args.push(assignedTo);
       }
 
       const rs = await db.execute({
