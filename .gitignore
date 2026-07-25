@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build output
+dist/
+build/
+.vite/
+
+# Local data and secrets
+census.db
+census.db-journal
+census.db-wal
+census.db-shm
+uploads/
+.env
+.env.local
+.env.*.local
+auth
+auth-wal
+
+# Logs
+*.log
+npm-debug.log*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp / scratch
+*.tmp
+*.bak
+*.cjs.tmp
+wipe.cjs
+audit-db.cjs
+update-colors.js

@@ -1,0 +1,104 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", sans-serif;
+  --font-display: "Outfit", sans-serif;
+  --font-tech: "Syncopate", sans-serif;
+
+  --color-brand-50: #fef2f2;
+  --color-brand-100: #fee2e2;
+  --color-brand-200: #fecaca;
+  --color-brand-500: #ef4444;
+  --color-brand-600: #dc2626;
+  --color-brand-700: #b91c1c;
+  --color-brand-800: #991b1b;
+  --color-brand-900: #7f1d1d;
+
+  --color-surface: #ffffff;
+  --color-surface-dim: #f8fafc;
+  --color-surface-container: #f1f5f9;
+}
+
+html,
+body {
+  background-color: var(--color-surface-dim);
+  color: #0f172a;
+}
+
+/* Custom utility for clean UI panels */
+@layer utilities {
+  .glass-panel {
+    @apply bg-white/95 backdrop-blur-xl border border-slate-200/80 shadow-xl shadow-slate-900/[0.04] rounded-2xl;
+  }
+
+  .glass-button {
+    @apply bg-white border border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300 text-slate-700 transition-all duration-300;
+  }
+}
+
+/* Premium range slider */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(to right, #dc2626, #ef4444);
+  outline: none;
+  position: relative;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: white;
+  border: 3px solid #dc2626;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3);
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  box-shadow: 0 4px 16px rgba(220, 38, 38, 0.4);
+  transform: scale(1.1);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: white;
+  border: 3px solid #dc2626;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3);
+}
+
+/* Smooth focus for all inputs */
+input:focus,
+textarea:focus,
+select:focus {
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+}
+
+/* Subtle pulse for active step */
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.3); }
+  70% { box-shadow: 0 0 0 8px rgba(220, 38, 38, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+}
+
+.step-active {
+  animation: pulse-ring 2s ease-out infinite;
+}
+
+/* Floating label animation */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-4px); }
+}
+
+.float-subtle {
+  animation: float 6s ease-in-out infinite;
+}
