@@ -1,0 +1,17 @@
+/*
+  Headers para Netlify CDN
+  https://docs.netlify.com/routing/headers/
+
+  El index.html NUNCA debe cachearse para que los deploys siempre
+  se vean inmediatamente. Los assets con hash (JS/CSS) sí pueden
+  cachearse por un año porque el hash cambia en cada build.
+*/
+
+/
+  Cache-Control: no-cache, no-store, must-revalidate
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: no-referrer
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
