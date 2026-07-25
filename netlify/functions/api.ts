@@ -31,16 +31,16 @@ interface CensusInput {
 
 const rawTursoUrl = process.env.TURSO_DATABASE_URL;
 const tursoToken = process.env.TURSO_AUTH_TOKEN;
-// Accept either the legacy plain ADMIN_PASS or any of the 4 role-specific bcrypt hashes.
-// If a *_PASS_HASH is provided, compare with bcrypt; otherwise fall back to plain ADMIN_PASS.
-const ADMIN_USER = process.env.ADMIN_USER || 'admin';
+// Admin user table: each role has its own hash (or shares a plain pass fallback)
+type AdminRole = 'capturista' | 'vocal' | 'presidente' | 'director';
+interface AdminEntry { passwordHash?: string; role: AdminRole; name: string; plainPass?: string }
+const ADMIN_USERS: Record<string, AdminEntry> = {
+  admin: { passwordHash: process.env.ADMIN_PASS_HASH, role: 'director', name: 'Director General', plainPass: process.env.ADMIN_PASS },
+  presidente: { passwordHash: process.env.PRES_PASS_HASH, role: 'presidente', name: 'Presidente del Comite', plainPass: process.env.ADMIN_PASS },
+  vocal: { passwordHash: process.env.VOCAL_PASS_HASH, role: 'vocal', name: 'Vocal del Comite', plainPass: process.env.ADMIN_PASS },
+  capturista: { passwordHash: process.env.CAPT_PASS_HASH, role: 'capturista', name: 'Capturista', plainPass: process.env.ADMIN_PASS },
+};
 const ADMIN_PLAIN_PASS = process.env.ADMIN_PASS || 'censo2025';
-const ADMIN_PASS_HASHES: string[] = [
-  process.env.ADMIN_PASS_HASH,
-  process.env.PRES_PASS_HASH,
-  process.env.VOCAL_PASS_HASH,
-  process.env.CAPT_PASS_HASH,
-].filter(Boolean) as string[];
 const ADMIN_SESSION_SECRET = process.env.ADMIN_SESSION_SECRET || 'change_this_secret_in_production';
 const ADMIN_SESSION_TTL_SECONDS = 60 * 60 * 8;
 const ADMIN_COOKIE_NAME = 'admin_session';
@@ -53,20 +53,18 @@ if (!rawTursoUrl || !tursoToken) {
   throw new Error('Missing TURSO_DATABASE_URL or TURSO_AUTH_TOKEN in Netlify environment.');
 }
 
-async function checkPassword(pass: string, user: string): Promise<boolean> {
-  // If any *_PASS_HASH is configured, the admin must use the corresponding username.
-  // For simplicity, accept any of the 4 hashes (all hashes are seeded for the same demo pass).
-  if (ADMIN_PASS_HASHES.length > 0) {
-    for (const hash of ADMIN_PASS_HASHES) {
-      try {
-        if (await bcrypt.compare(pass, hash)) return true;
-      } catch {
-        // ignore malformed hash
-      }
+async function checkPasswordForUser(pass: string, entry: AdminEntry): Promise<boolean> {
+  // Try bcrypt hash first if configured
+  if (entry.passwordHash) {
+    try {
+      if (await bcrypt.compare(pass, entry.passwordHash)) return true;
+    } catch {
+      // ignore malformed hash
     }
-    return false;
   }
-  return safeEqual(pass, ADMIN_PLAIN_PASS);
+  // Fallback to plain pass
+  const plain = entry.plainPass || ADMIN_PLAIN_PASS;
+  return safeEqual(pass, plain);
 }
 
 const tursoUrl = rawTursoUrl.replace(/^libsql:\/\//, 'https://');
@@ -108,22 +106,22 @@ function createSessionToken(username: string) {
   return `${payloadBase64}.${signature}`;
 }
 
-function verifySessionToken(token?: string | null) {
-  if (!token || !token.includes('.')) return false;
+function verifySessionToken(token?: string | null): { username: string } | null {
+  if (!token || !token.includes('.')) return null;
   const [payloadBase64, signature] = token.split('.');
-  if (!payloadBase64 || !signature) return false;
+  if (!payloadBase64 || !signature) return null;
 
   const expectedSignature = signSessionPayload(payloadBase64);
-  if (!safeEqual(signature, expectedSignature)) return false;
+  if (!safeEqual(signature, expectedSignature)) return null;
 
   try {
     const payload = JSON.parse(Buffer.from(payloadBase64, 'base64url').toString('utf8')) as { u?: string; exp?: number };
-    if (!payload?.u || !payload?.exp) return false;
-    if (payload.u !== ADMIN_USER) return false;
-    if (Date.now() > payload.exp) return false;
-    return true;
+    if (!payload?.u || !payload?.exp) return null;
+    if (!ADMIN_USERS[payload.u]) return null;
+    if (Date.now() > payload.exp) return null;
+    return { username: payload.u };
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -535,7 +533,9 @@ export const handler = async (event: any) => {
     if (!pathname) pathname = '/';
     const isProd = process.env.CONTEXT === 'production';
     const cookies = parseCookies(event.headers?.cookie || event.headers?.Cookie);
-    const isAdmin = verifySessionToken(cookies[ADMIN_COOKIE_NAME]);
+    const session = verifySessionToken(cookies[ADMIN_COOKIE_NAME]);
+    const isAdmin = session !== null;
+    const currentUser = session ? ADMIN_USERS[session.username] : null;
 
     if (event.body && String(event.body).length > 6 * 1024 * 1024) {
       return json(413, { error: 'Payload demasiado grande' });
@@ -549,14 +549,15 @@ export const handler = async (event: any) => {
       const payload = event.body ? JSON.parse(event.body) : {};
       const user = toText(payload.user);
       const pass = toText(payload.pass);
-      if (!safeEqual(user, ADMIN_USER) || !(await checkPassword(pass, user))) {
+      const entry = ADMIN_USERS[user];
+      if (!entry || !(await checkPasswordForUser(pass, entry))) {
         registerLoginFailure(clientIp, now);
         return json(401, { error: 'Credenciales incorrectas' });
       }
       clearLoginFailures(clientIp);
       const token = createSessionToken(user);
       const cookie = `${ADMIN_COOKIE_NAME}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${ADMIN_SESSION_TTL_SECONDS}${isProd ? '; Secure' : ''}`;
-      return json(200, { success: true, user: { username: user, role: 'director', name: 'Director General' } }, { 'Set-Cookie': cookie });
+      return json(200, { success: true, user: { username: user, role: entry.role, name: entry.name } }, { 'Set-Cookie': cookie });
     }
 
     if (event.httpMethod === 'POST' && pathname === '/admin/logout') {
@@ -565,8 +566,8 @@ export const handler = async (event: any) => {
     }
 
     if (event.httpMethod === 'GET' && pathname === '/admin/me') {
-      if (!isAdmin) return json(401, { error: 'No autorizado' });
-      return json(200, { ok: true, user: { username: ADMIN_USER, role: 'director', name: 'Director General' } });
+      if (!isAdmin || !currentUser || !session) return json(401, { error: 'No autorizado' });
+      return json(200, { ok: true, user: { username: session.username, role: currentUser.role, name: currentUser.name } });
     }
 
     if (event.httpMethod === 'GET' && pathname === '/health') {
@@ -1100,7 +1101,7 @@ export const handler = async (event: any) => {
       if (!exists.rows[0]) return json(404, { error: 'Registro no encontrado' });
       const result = await db.execute({
         sql: 'INSERT INTO case_comments (submission_id, author, author_role, body) VALUES (?, ?, ?, ?)',
-        args: [id, ADMIN_USER, 'director', body],
+        args: [id, session?.username || 'admin', currentUser?.role || 'director', body],
       });
       const newId = Number(result.lastInsertRowid ?? 0);
       const created = await db.execute({
@@ -1145,17 +1146,18 @@ export const handler = async (event: any) => {
       if (!isAdmin) return json(401, { error: 'No autorizado' });
       const params = new URL(event.rawUrl).searchParams;
       const limit = clamp(toNumber(params.get('limit'), 20), 1, 100);
+      const me = session?.username || 'admin';
       const rows = await db.execute({
         sql: `SELECT id, type, title, body, target_type, target_id, actor, read_at, created_at
               FROM notifications
               WHERE user_target IN ('all', ?)
               ORDER BY created_at DESC
               LIMIT ?`,
-        args: [ADMIN_USER, limit],
+        args: [me, limit],
       });
       const unreadRs = await db.execute({
         sql: `SELECT COUNT(*) as c FROM notifications WHERE user_target IN ('all', ?) AND read_at IS NULL`,
-        args: [ADMIN_USER],
+        args: [me],
       });
       return json(200, { data: rows.rows, unread: Number((unreadRs.rows[0] as any)?.c || 0) });
     }
@@ -1173,9 +1175,10 @@ export const handler = async (event: any) => {
 
     if (event.httpMethod === 'PATCH' && pathname === '/admin/notifications/read-all') {
       if (!isAdmin) return json(401, { error: 'No autorizado' });
+      const me = session?.username || 'admin';
       await db.execute({
         sql: `UPDATE notifications SET read_at = ? WHERE user_target IN ('all', ?) AND read_at IS NULL`,
-        args: [new Date().toISOString(), ADMIN_USER],
+        args: [new Date().toISOString(), me],
       });
       return json(200, { success: true });
     }
