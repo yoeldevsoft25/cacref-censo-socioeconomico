@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, Outlet, useLocation } from 'react-router-dom';
 import CensusForm from './components/CensusForm';
 import AdminDashboard from './components/AdminDashboard';
 import AdminLogin from './components/AdminLogin';
@@ -161,21 +161,29 @@ function ProtectedAdminRoute() {
 export default function App() {
   return (
     <Router>
-      <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-red-100 selection:text-red-900">
-        <Header />
-        <main className="relative pt-16">
-          <Routes>
-            <Route path="/" element={<CensusForm />} />
-            <Route path="/metodologia" element={<MethodologyPage />} />
-            <Route path="/privacidad" element={<PrivacyPage />} />
-            <Route path="/consulta" element={<ConsultationPage />} />
-            <Route path="/transparencia" element={<TransparencyPage />} />
-            <Route path="/admin/*" element={<ProtectedAdminRoute />} />
-            <Route path="/auditoria/*" element={<ProtectedAdminRoute />} />
-          </Routes>
-        </main>
-        <Footer />
-      </div>
+      <Routes>
+        <Route element={<PublicLayout />}>
+          <Route path="/" element={<CensusForm />} />
+          <Route path="/metodologia" element={<MethodologyPage />} />
+          <Route path="/privacidad" element={<PrivacyPage />} />
+          <Route path="/consulta" element={<ConsultationPage />} />
+          <Route path="/transparencia" element={<TransparencyPage />} />
+        </Route>
+        <Route path="/admin/*" element={<ProtectedAdminRoute />} />
+        <Route path="/auditoria/*" element={<ProtectedAdminRoute />} />
+      </Routes>
     </Router>
+  );
+}
+
+function PublicLayout() {
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-red-100 selection:text-red-900">
+      <Header />
+      <main className="relative pt-16">
+        <Outlet />
+      </main>
+      <Footer />
+    </div>
   );
 }
