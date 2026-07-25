@@ -615,12 +615,14 @@ async function startServer() {
   });
 
   const setAdminCookie = (res: express.Response, token: string) => {
-    const cookie = `${ADMIN_COOKIE_NAME}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${ADMIN_SESSION_TTL_SECONDS}${isProd ? '; Secure' : ''}`;
+    const sameSite = isProd ? 'Strict' : 'Lax';
+    const cookie = `${ADMIN_COOKIE_NAME}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=${sameSite}; Max-Age=${ADMIN_SESSION_TTL_SECONDS}${isProd ? '; Secure' : ''}`;
     res.setHeader('Set-Cookie', cookie);
   };
 
   const clearAdminCookie = (res: express.Response) => {
-    const cookie = `${ADMIN_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0${isProd ? '; Secure' : ''}`;
+    const sameSite = isProd ? 'Strict' : 'Lax';
+    const cookie = `${ADMIN_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=${sameSite}; Max-Age=0${isProd ? '; Secure' : ''}`;
     res.setHeader('Set-Cookie', cookie);
   };
 

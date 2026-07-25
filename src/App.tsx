@@ -81,7 +81,7 @@ function ProtectedAdminRoute() {
     let cancelled = false;
     const checkSession = async () => {
       try {
-        const res = await fetch('/api/admin/me');
+        const res = await fetch('/api/admin/me', { credentials: 'include' });
         if (!cancelled) {
           if (res.ok) {
             const data = await res.json();
@@ -140,7 +140,7 @@ function ProtectedAdminRoute() {
         <button
           onClick={async () => {
             try {
-              await fetch('/api/admin/logout', { method: 'POST' });
+              await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' });
             } finally {
               setSession(null);
             }
