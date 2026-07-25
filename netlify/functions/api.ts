@@ -509,6 +509,50 @@ export const handler = async (event: any) => {
       return json(200, { status: 'ok', db: 'turso' });
     }
 
+    if (event.httpMethod === 'GET' && pathname === '/transparencia') {
+      try {
+        const totalRow = await db.execute(`SELECT COUNT(*) as total, MIN(created_at) as first_at, MAX(created_at) as last_at FROM census_submissions`);
+        const porEstado = await db.execute(`SELECT COALESCE(workflow_status, 'REGISTRADO') as workflow_status, COUNT(*) as count FROM census_submissions GROUP BY workflow_status`);
+        const porGerencia = await db.execute(`SELECT gerencia, COUNT(*) as total, SUM(CASE WHEN workflow_status = 'RESUELTO' THEN 1 ELSE 0 END) as resueltos FROM census_submissions GROUP BY gerencia ORDER BY total DESC LIMIT 10`);
+        const tiempos = await db.execute(`SELECT workflow_status, ROUND(AVG((julianday(COALESCE(workflow_updated_at, created_at)) - julianday(created_at))), 1) as avg_days FROM census_submissions WHERE created_at IS NOT NULL GROUP BY workflow_status`);
+        const medicamentos = await db.execute(`SELECT SUM(CASE WHEN requiere_medicamento_cronico = 1 THEN 1 ELSE 0 END) as total FROM census_submissions`);
+        const cirugias = await db.execute(`SELECT SUM(CASE WHEN requiere_cirugia = 1 THEN 1 ELSE 0 END) as total FROM census_submissions`);
+        const familiar = await db.execute(`SELECT SUM(CASE WHEN familiar_requiere_asistencia = 1 THEN 1 ELSE 0 END) as total FROM census_submissions`);
+
+        const total = Number((totalRow.rows[0] as any)?.total || 0);
+        const estadosObj: Record<string, number> = { REGISTRADO: 0, EN_REVISION: 0, COMITE: 0, RESUELTO: 0, DESCARTADO: 0 };
+        for (const r of porEstado.rows as any[]) estadosObj[r.workflow_status] = Number(r.count);
+
+        const resueltos = estadosObj.RESUELTO || 0;
+        const enProceso = total - resueltos - estadosObj.DESCARTADO;
+        const tasaResolucion = total > 0 ? Math.round((resueltos / total) * 1000) / 10 : 0;
+
+        const tiemposMap: Record<string, number> = {};
+        for (const t of tiempos.rows as any[]) tiemposMap[t.workflow_status] = Number(t.avg_days || 0);
+
+        return json(200, {
+          total,
+          generados: (totalRow.rows[0] as any)?.first_at || null,
+          actualizados: (totalRow.rows[0] as any)?.last_at || null,
+          resueltos,
+          en_proceso: Math.max(0, enProceso),
+          tasa_resolucion: tasaResolucion,
+          por_estado: estadosObj,
+          por_gerencia: porGerencia.rows,
+          tiempos_promedio_dias: tiemposMap,
+          necesidades: {
+            medicamento_cronico: Number((medicamentos.rows[0] as any)?.total || 0),
+            cirugia: Number((cirugias.rows[0] as any)?.total || 0),
+            familiar_asistencia: Number((familiar.rows[0] as any)?.total || 0),
+          },
+          generado_en: new Date().toISOString(),
+        });
+      } catch (err) {
+        console.error('Transparency error:', err);
+        return json(500, { error: 'Error interno del servidor.' });
+      }
+    }
+
     if (event.httpMethod === 'GET' && pathname === '/version') {
       return json(200, {
         version: 'v3-bcrypt-multi-role-lopdp',
