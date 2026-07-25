@@ -1,6 +1,7 @@
 import { useRef, useState, type ChangeEvent, type DragEvent, type KeyboardEvent, type MouseEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Upload, Loader2, CheckCircle2, X, AlertCircle, FileText } from 'lucide-react';
+import { minifyImage, MinifyError } from '../lib/imageMinifier';
 
 export interface UploadedFile {
   id: string;
@@ -57,18 +58,29 @@ export default function FileUploadField({ label, description, required, value, o
 
   const handleUpload = async (file: File) => {
     setInternalError(null);
-    if (file.size > MAX_BYTES) {
-      setInternalError('El archivo excede el límite de 10MB.');
-      return;
-    }
     if (!isAcceptedFile(file)) {
       setInternalError('Formato no permitido. Use PDF, JPG o PNG.');
       return;
     }
     setUploading(true);
     try {
+      // Minify images client-side before upload (PDFs pass through)
+      let toUpload: File;
+      try {
+        toUpload = await minifyImage(file, { maxDimension: 1920, quality: 0.75, targetBytes: 700 * 1024, maxBytes: 5 * 1024 * 1024 });
+      } catch (e) {
+        if (e instanceof MinifyError) {
+          setInternalError(e.message);
+          return;
+        }
+        throw e;
+      }
+      if (toUpload.size > MAX_BYTES) {
+        setInternalError(`El archivo (${(toUpload.size / 1024 / 1024).toFixed(2)} MB) excede el límite de 10MB.`);
+        return;
+      }
       const fd = new FormData();
-      fd.append('file', file);
+      fd.append('file', toUpload);
       const res = await fetch('/api/census/upload', { method: 'POST', body: fd });
       const data = await res.json().catch(() => ({} as Record<string, unknown>));
       if (!res.ok) throw new Error((data as { error?: string }).error || 'Error al subir el archivo.');

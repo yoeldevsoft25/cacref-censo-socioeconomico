@@ -473,7 +473,7 @@ export const handler = async (event: any) => {
     const cookies = parseCookies(event.headers?.cookie || event.headers?.Cookie);
     const isAdmin = verifySessionToken(cookies[ADMIN_COOKIE_NAME]);
 
-    if (event.body && String(event.body).length > 100_000) {
+    if (event.body && String(event.body).length > 6 * 1024 * 1024) {
       return json(413, { error: 'Payload demasiado grande' });
     }
 
