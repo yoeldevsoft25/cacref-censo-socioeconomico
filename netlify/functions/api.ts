@@ -782,6 +782,60 @@ export const handler = async (event: any) => {
       }
     }
 
+    // ARCO: Cancelacion (Art. 25 LOPDP) - anonimiza datos personales
+    if (event.httpMethod === 'POST' && /^\/census\/delete\/\d{5,12}$/.test(pathname)) {
+      try {
+        const cedula = pathname.split('/')[3];
+        const payload = event.body ? JSON.parse(event.body) : {};
+        const confirmToken = toText(payload.confirm);
+        if (confirmToken !== 'ELIMINAR') {
+          return json(400, { error: 'Debe confirmar con el token "ELIMINAR" en el body.' });
+        }
+        const exists = await db.execute({ sql: 'SELECT id, cedula, nombre_apellido FROM census_submissions WHERE cedula = ?', args: [cedula] });
+        const row = exists.rows[0] as any;
+        if (!row) return json(404, { error: 'Cedula no encontrada' });
+        const now = new Date().toISOString();
+        await db.execute({
+          sql: `UPDATE census_submissions SET
+            nombre_apellido = 'ELIMINADO',
+            telefono = 'ELIMINADO',
+            correo = 'ELIMINADO',
+            region_sede = 'ELIMINADO',
+            vicepresidencia = NULL,
+            direccion_ejecutiva = NULL,
+            gerencia = 'ELIMINADO',
+            unidad_operativa = NULL,
+            cargo = 'ELIMINADO',
+            anos_servicio = 0,
+            ingreso_individual = 0,
+            ingreso_familiar = 0,
+            capacidad_cuota = 0,
+            medicamento_detalle = NULL,
+            cirugia_detalle = NULL,
+            workflow_notes = NULL,
+            decision_observaciones = NULL,
+            assigned_to = NULL,
+            workflow_status = 'DESCARTADO',
+            score = 0,
+            risk_level = NULL,
+            recommendation = 'NO_ELEGIBLE',
+            priority_bucket = 4
+          WHERE id = ?`,
+          args: [row.id],
+        });
+        return json(200, {
+          success: true,
+          message: 'Sus datos personales han sido anonimizados conforme a la LOPDP.',
+          id: row.id,
+          derecho_ejercitado: 'Cancelacion (Art. 25 LOPDP)',
+          fecha_eliminacion: now,
+        });
+      } catch (err) {
+        console.error('Delete error:', err);
+        return json(500, { error: 'Error interno del servidor.' });
+      }
+    }
+
     if (event.httpMethod === 'POST' && pathname === '/census') {
       const payload = event.body ? JSON.parse(event.body) : {};
       const data = normalizeInput(payload);
@@ -967,6 +1021,61 @@ export const handler = async (event: any) => {
         args: [id],
       });
       return json(200, rs.rows);
+    }
+
+    // Bulk import - simplified: accepts a JSON array of submissions
+    if (event.httpMethod === 'POST' && pathname === '/admin/submissions/bulk-import') {
+      if (!isAdmin) return json(401, { error: 'No autorizado' });
+      try {
+        const payload = event.body ? JSON.parse(event.body) : {};
+        const items: any[] = Array.isArray(payload) ? payload : Array.isArray(payload?.rows) ? payload.rows : [];
+        let inserted = 0;
+        let errors = 0;
+        const errorDetails: any[] = [];
+        for (let i = 0; i < items.length; i++) {
+          try {
+            const data = normalizeInput(items[i]);
+            const validationError = validateCensusInput(data);
+            if (validationError) { errors++; errorDetails.push({ row: i, error: validationError }); continue; }
+            const evaluation = evaluateApplicant(data);
+            await db.execute({
+              sql: `INSERT INTO census_submissions (
+                nombre_apellido, cedula, telefono, correo, region_sede, vicepresidencia,
+                direccion_ejecutiva, gerencia, unidad_operativa,
+                anos_servicio, cargo, ingreso_individual, ingreso_familiar, afiliado_cacref,
+                capacidad_cuota, posee_vehiculo, vehiculo_ano, vehiculo_modelo, vehiculo_marca,
+                vehiculo_estado, vehiculo_aspirado, requiere_medicamento_cronico, medicamento_detalle,
+                requiere_cirugia, cirugia_detalle, familiar_requiere_asistencia, calidad_vida_escala, score,
+                score_seniority, score_payment_capacity, score_affordability, score_vehicle_need, score_health_need,
+                score_cooperative_bonus, affordability_ratio, suggested_max_quota, risk_level,
+                recommendation, priority_bucket
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              args: [
+                data.nombre_apellido, data.cedula, data.telefono, data.correo, null, data.vicepresidencia,
+                data.direccion_ejecutiva, data.gerencia, data.unidad_operativa,
+                data.anos_servicio, data.cargo, data.ingreso_individual, data.ingreso_familiar, data.afiliado_cacref ? 1 : 0,
+                data.capacidad_cuota, 0, null, null, null, null, 'NO APLICA - CENSO SALUD',
+                data.requiere_medicamento_cronico ? 1 : 0, data.medicamento_detalle,
+                data.requiere_cirugia ? 1 : 0, data.cirugia_detalle,
+                data.familiar_requiere_asistencia ? 1 : 0, data.calidad_vida_escala,
+                evaluation.score, evaluation.score_seniority, evaluation.score_payment_capacity,
+                evaluation.score_affordability, 0, evaluation.score_health_need,
+                evaluation.score_cooperative_bonus, evaluation.affordability_ratio,
+                evaluation.suggested_max_quota, evaluation.risk_level,
+                evaluation.recommendation, evaluation.priority_bucket,
+              ],
+            });
+            inserted++;
+          } catch (e: any) {
+            errors++;
+            errorDetails.push({ row: i, error: String(e?.message || e) });
+          }
+        }
+        return json(200, { success: true, inserted, errors, errorDetails: errorDetails.slice(0, 10) });
+      } catch (err) {
+        console.error('Bulk import error:', err);
+        return json(500, { error: 'Error interno del servidor.' });
+      }
     }
 
     if (event.httpMethod === 'POST' && /^\/admin\/submissions\/\d+\/comments$/.test(pathname)) {
