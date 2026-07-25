@@ -1,0 +1,35 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Diag3</title></head>
+<body style="font-family: monospace; padding: 20px; background:#fffbe6;">
+<h1>Diag3 — Login + reload, como lo hace el bundle</h1>
+<ol>
+<li>Click "Login" → fetch con credentials:include</li>
+<li>Si OK → <code>window.location.reload()</code> (igual que AdminLogin.tsx)</li>
+</ol>
+<p>Si tras el reload sigue mostrando "estas logueado", el bundle deberia funcionar.</p>
+<button id="go" style="padding:12px 24px; font-size:16px; cursor:pointer;">Login (admin/censo2025)</button>
+<pre id="out" style="background:#f4f4f4; padding:12px; white-space:pre-wrap; margin-top:12px;">esperando click</pre>
+<script>
+const out = document.getElementById('out');
+const log = [];
+const push = (l) => { log.push(l); out.textContent = log.join('\n'); console.log(l); };
+document.getElementById('go').onclick = async () => {
+  push('1. POST /api/admin/login con credentials:include...');
+  const r = await fetch('/api/admin/login', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user: 'admin', pass: 'censo2025' }),
+  });
+  push('   STATUS: ' + r.status);
+  push('   BODY: ' + JSON.stringify(await r.json()));
+  push('2. Cookies visibles en JS: ' + (document.cookie || '(HttpOnly, no visible)'));
+  push('3. Esperando 500ms y luego reload como el bundle...');
+  setTimeout(() => {
+    push('4. Recargando...');
+    window.location.reload();
+  }, 500);
+};
+push('Pagina cargada. Click en "Login" para empezar.');
+</script>
+</body></html>
