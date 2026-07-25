@@ -30,8 +30,17 @@ interface CensusInput {
 
 const rawTursoUrl = process.env.TURSO_DATABASE_URL;
 const tursoToken = process.env.TURSO_AUTH_TOKEN;
+// Accept either the legacy plain ADMIN_PASS or any of the 4 role-specific bcrypt hashes.
+// If a *_PASS_HASH is provided, compare with bcrypt; otherwise fall back to plain ADMIN_PASS.
+import bcrypt from 'bcryptjs';
 const ADMIN_USER = process.env.ADMIN_USER || 'admin';
-const ADMIN_PASS = process.env.ADMIN_PASS || 'censo2025';
+const ADMIN_PLAIN_PASS = process.env.ADMIN_PASS || 'censo2025';
+const ADMIN_PASS_HASHES: string[] = [
+  process.env.ADMIN_PASS_HASH,
+  process.env.PRES_PASS_HASH,
+  process.env.VOCAL_PASS_HASH,
+  process.env.CAPT_PASS_HASH,
+].filter(Boolean) as string[];
 const ADMIN_SESSION_SECRET = process.env.ADMIN_SESSION_SECRET || 'change_this_secret_in_production';
 const ADMIN_SESSION_TTL_SECONDS = 60 * 60 * 8;
 const ADMIN_COOKIE_NAME = 'admin_session';
@@ -42,6 +51,22 @@ const EDGE_WINDOW_MS = 60 * 1000;
 const EDGE_MAX_REQUESTS = 160;
 if (!rawTursoUrl || !tursoToken) {
   throw new Error('Missing TURSO_DATABASE_URL or TURSO_AUTH_TOKEN in Netlify environment.');
+}
+
+async function checkPassword(pass: string, user: string): Promise<boolean> {
+  // If any *_PASS_HASH is configured, the admin must use the corresponding username.
+  // For simplicity, accept any of the 4 hashes (all hashes are seeded for the same demo pass).
+  if (ADMIN_PASS_HASHES.length > 0) {
+    for (const hash of ADMIN_PASS_HASHES) {
+      try {
+        if (await bcrypt.compare(pass, hash)) return true;
+      } catch {
+        // ignore malformed hash
+      }
+    }
+    return false;
+  }
+  return safeEqual(pass, ADMIN_PLAIN_PASS);
 }
 
 const tursoUrl = rawTursoUrl.replace(/^libsql:\/\//, 'https://');
@@ -444,24 +469,24 @@ export const handler = async (event: any) => {
       const payload = event.body ? JSON.parse(event.body) : {};
       const user = toText(payload.user);
       const pass = toText(payload.pass);
-      if (!safeEqual(user, ADMIN_USER) || !safeEqual(pass, ADMIN_PASS)) {
+      if (!safeEqual(user, ADMIN_USER) || !(await checkPassword(pass, user))) {
         registerLoginFailure(clientIp, now);
         return json(401, { error: 'Credenciales incorrectas' });
       }
       clearLoginFailures(clientIp);
       const token = createSessionToken(user);
-      const cookie = `${ADMIN_COOKIE_NAME}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${ADMIN_SESSION_TTL_SECONDS}${isProd ? '; Secure' : ''}`;
-      return json(200, { success: true }, { 'Set-Cookie': cookie });
+      const cookie = `${ADMIN_COOKIE_NAME}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${ADMIN_SESSION_TTL_SECONDS}${isProd ? '; Secure' : ''}`;
+      return json(200, { success: true, user: { username: user, role: 'director', name: 'Director General' } }, { 'Set-Cookie': cookie });
     }
 
     if (event.httpMethod === 'POST' && pathname === '/admin/logout') {
-      const cookie = `${ADMIN_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0${isProd ? '; Secure' : ''}`;
+      const cookie = `${ADMIN_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${isProd ? '; Secure' : ''}`;
       return json(200, { success: true }, { 'Set-Cookie': cookie });
     }
 
     if (event.httpMethod === 'GET' && pathname === '/admin/me') {
       if (!isAdmin) return json(401, { error: 'No autorizado' });
-      return json(200, { ok: true });
+      return json(200, { ok: true, user: { username: ADMIN_USER, role: 'director', name: 'Director General' } });
     }
 
     if (event.httpMethod === 'GET' && pathname === '/health') {
