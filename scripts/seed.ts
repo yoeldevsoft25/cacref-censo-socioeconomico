@@ -112,14 +112,14 @@ const INSERT_SQL = `
     nombre_apellido, cedula, telefono, correo, region_sede, vicepresidencia,
     direccion_ejecutiva, gerencia, unidad_operativa, anos_servicio, cargo,
     ingreso_individual, ingreso_familiar, afiliado_cacref, capacidad_cuota,
-    posee_vehiculo, vehiculo_aspirado,
+    posee_vehiculo, vehiculo_ano, vehiculo_modelo, vehiculo_marca, vehiculo_estado, vehiculo_aspirado,
     requiere_medicamento_cronico, medicamento_detalle, requiere_cirugia,
     cirugia_detalle, familiar_requiere_asistencia, calidad_vida_escala,
     score, score_seniority, score_payment_capacity, score_affordability,
     score_health_need, score_cooperative_bonus, affordability_ratio,
     suggested_max_quota, risk_level, recommendation, priority_bucket,
     workflow_status, workflow_updated_at
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `;
 
 const HISTORY_SQL = `
@@ -319,7 +319,7 @@ async function main() {
             r.nombre_apellido, r.cedula, r.telefono, r.correo, r.region_sede, r.vicepresidencia,
             r.direccion_ejecutiva, r.gerencia, r.unidad_operativa, r.anos_servicio, r.cargo,
             r.ingreso_individual, r.ingreso_familiar, r.afiliado_cacref ? 1 : 0, r.capacidad_cuota,
-            0, 'NO APLICA - CENSO SALUD',
+            0, null, null, null, null, 'NO APLICA - CENSO SALUD',
             r.requiere_medicamento_cronico ? 1 : 0, r.medicamento_detalle, r.requiere_cirugia ? 1 : 0,
             r.cirugia_detalle, r.familiar_requiere_asistencia ? 1 : 0, r.calidad_vida_escala,
             ev.score, ev.score_seniority, ev.score_payment_capacity, ev.score_affordability,
@@ -340,7 +340,7 @@ async function main() {
           r.nombre_apellido, r.cedula, r.telefono, r.correo, r.region_sede, r.vicepresidencia,
           r.direccion_ejecutiva, r.gerencia, r.unidad_operativa, r.anos_servicio, r.cargo,
           r.ingreso_individual, r.ingreso_familiar, r.afiliado_cacref ? 1 : 0, r.capacidad_cuota,
-          0, 'NO APLICA - CENSO SALUD',
+          0, null, null, null, null, 'NO APLICA - CENSO SALUD',
           r.requiere_medicamento_cronico ? 1 : 0, r.medicamento_detalle, r.requiere_cirugia ? 1 : 0,
           r.cirugia_detalle, r.familiar_requiere_asistencia ? 1 : 0, r.calidad_vida_escala,
           ev.score, ev.score_seniority, ev.score_payment_capacity, ev.score_affordability,
