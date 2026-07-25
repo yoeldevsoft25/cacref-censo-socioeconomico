@@ -687,6 +687,63 @@ export const handler = async (event: any) => {
       };
     }
 
+    if (event.httpMethod === 'GET' && /^\/census\/status\/\d{5,12}$/.test(pathname)) {
+      try {
+        const cedula = pathname.split('/')[3];
+        const rowRs = await db.execute({
+          sql: `SELECT nombre_apellido, cedula, gerencia, workflow_status, assigned_to,
+                  decision_tipo, decision_monto, decision_observaciones, decision_at,
+                  workflow_updated_at, created_at
+                  FROM census_submissions WHERE cedula = ? LIMIT 1`,
+          args: [cedula],
+        });
+        const row = rowRs.rows[0] as any;
+        if (!row) return json(200, { found: false });
+
+        const updatedAt = row.workflow_updated_at
+          ? new Date(String(row.workflow_updated_at))
+          : new Date(String(row.created_at));
+        const days = Math.floor((Date.now() - updatedAt.getTime()) / (1000 * 60 * 60 * 24));
+        let sla: 'ON_TRACK' | 'WARNING' | 'OVERDUE' = 'ON_TRACK';
+        if (row.workflow_status === 'COMITE' && days > 7) sla = 'OVERDUE';
+        else if (row.workflow_status === 'COMITE' && days > 3) sla = 'WARNING';
+        else if (['EN_REVISION', 'REGISTRADO'].includes(row.workflow_status) && days > 5) sla = 'WARNING';
+
+        const statusLabels: Record<string, string> = {
+          REGISTRADO: 'Recibido',
+          EN_REVISION: 'En revision',
+          COMITE: 'En comite',
+          RESUELTO: 'Resuelto',
+          DESCARTADO: 'Descartado',
+        };
+
+        const decision = row.decision_tipo
+          ? {
+              tipo: row.decision_tipo,
+              monto_aprobado: Number(row.decision_monto || 0),
+              observaciones: row.decision_observaciones,
+            }
+          : null;
+
+        return json(200, {
+          found: true,
+          nombre_apellido: row.nombre_apellido,
+          cedula: row.cedula,
+          gerencia: row.gerencia,
+          status: row.workflow_status || 'REGISTRADO',
+          status_label: statusLabels[row.workflow_status] || row.workflow_status,
+          assigned_to: row.assigned_to || null,
+          days_in_state: days,
+          sla,
+          decision,
+          submitted_at: row.created_at,
+        });
+      } catch (err) {
+        console.error('Status error:', err);
+        return json(500, { found: false, error: 'Error interno del servidor.' });
+      }
+    }
+
     if (event.httpMethod === 'POST' && pathname === '/census') {
       const payload = event.body ? JSON.parse(event.body) : {};
       const data = normalizeInput(payload);
