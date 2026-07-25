@@ -456,6 +456,37 @@ async function initSchema() {
     // ignore
   }
 
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS case_comments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      submission_id INTEGER NOT NULL,
+      author TEXT NOT NULL,
+      author_role TEXT NOT NULL,
+      body TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (submission_id) REFERENCES census_submissions(id)
+    )
+  `);
+  await db.execute('CREATE INDEX IF NOT EXISTS idx_comments_submission ON case_comments(submission_id, created_at)');
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      actor TEXT NOT NULL,
+      actor_role TEXT NOT NULL,
+      action TEXT NOT NULL,
+      target_type TEXT,
+      target_id TEXT,
+      details TEXT,
+      ip TEXT,
+      user_agent TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.execute('CREATE INDEX IF NOT EXISTS idx_audit_created_at ON audit_log(created_at)');
+  await db.execute('CREATE INDEX IF NOT EXISTS idx_audit_actor ON audit_log(actor)');
+  await db.execute('CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_log(action)');
+
   await db.execute('CREATE INDEX IF NOT EXISTS idx_census_priority ON census_submissions(priority_bucket, score)');
   await db.execute('CREATE INDEX IF NOT EXISTS idx_census_risk_reco ON census_submissions(risk_level, recommendation)');
   await db.execute('CREATE INDEX IF NOT EXISTS idx_census_created_at ON census_submissions(created_at)');
@@ -927,6 +958,69 @@ export const handler = async (event: any) => {
       return json(200, rs.rows);
     }
 
+    if (event.httpMethod === 'GET' && /^\/admin\/submissions\/\d+\/comments$/.test(pathname)) {
+      if (!isAdmin) return json(401, { error: 'No autorizado' });
+      const id = Number(pathname.split('/')[3]);
+      if (!id) return json(400, { error: 'Id invalido' });
+      const rs = await db.execute({
+        sql: 'SELECT id, author, author_role, body, created_at FROM case_comments WHERE submission_id = ? ORDER BY created_at ASC',
+        args: [id],
+      });
+      return json(200, rs.rows);
+    }
+
+    if (event.httpMethod === 'POST' && /^\/admin\/submissions\/\d+\/comments$/.test(pathname)) {
+      if (!isAdmin) return json(401, { error: 'No autorizado' });
+      const id = Number(pathname.split('/')[3]);
+      if (!id) return json(400, { error: 'Id invalido' });
+      const payload = event.body ? JSON.parse(event.body) : {};
+      const body = toText(payload.body).slice(0, 2000);
+      if (!body) return json(400, { error: 'El comentario no puede estar vacio.' });
+      const exists = await db.execute({ sql: 'SELECT id FROM census_submissions WHERE id = ?', args: [id] });
+      if (!exists.rows[0]) return json(404, { error: 'Registro no encontrado' });
+      const result = await db.execute({
+        sql: 'INSERT INTO case_comments (submission_id, author, author_role, body) VALUES (?, ?, ?, ?)',
+        args: [id, ADMIN_USER, 'director', body],
+      });
+      const newId = Number(result.lastInsertRowid ?? 0);
+      const created = await db.execute({
+        sql: 'SELECT id, author, author_role, body, created_at FROM case_comments WHERE id = ?',
+        args: [newId],
+      });
+      return json(201, (created.rows[0] as any) || {});
+    }
+
+    if (event.httpMethod === 'GET' && /^\/admin\/submissions\/\d+\/files$/.test(pathname)) {
+      if (!isAdmin) return json(401, { error: 'No autorizado' });
+      const id = Number(pathname.split('/')[3]);
+      if (!id) return json(400, { error: 'Id invalido' });
+      const rs = await db.execute({
+        sql: 'SELECT id, file_type, original_name, stored_name, mime_type, size_bytes, uploaded_at FROM submission_files WHERE submission_id = ? ORDER BY uploaded_at ASC',
+        args: [id],
+      });
+      const files = (rs.rows as any[]).map((f) => ({
+        ...f,
+        url: `/api/census/files/${f.id}`,
+      }));
+      return json(200, files);
+    }
+
+    if (event.httpMethod === 'POST' && /^\/admin\/submissions\/\d+\/attach$/.test(pathname)) {
+      if (!isAdmin) return json(401, { error: 'No autorizado' });
+      const id = Number(pathname.split('/')[3]);
+      if (!id) return json(400, { error: 'Id invalido' });
+      await db.execute({ sql: 'UPDATE census_submissions SET has_document = 1 WHERE id = ?', args: [id] });
+      return json(200, { success: true, has_document: true });
+    }
+
+    if (event.httpMethod === 'POST' && /^\/admin\/submissions\/\d+\/detach$/.test(pathname)) {
+      if (!isAdmin) return json(401, { error: 'No autorizado' });
+      const id = Number(pathname.split('/')[3]);
+      if (!id) return json(400, { error: 'Id invalido' });
+      await db.execute({ sql: 'UPDATE census_submissions SET has_document = 0 WHERE id = ?', args: [id] });
+      return json(200, { success: true, has_document: false });
+    }
+
     if (event.httpMethod === 'GET' && pathname === '/admin/notifications') {
       if (!isAdmin) return json(401, { error: 'No autorizado' });
       const params = new URL(event.rawUrl).searchParams;
@@ -964,6 +1058,37 @@ export const handler = async (event: any) => {
         args: [new Date().toISOString(), ADMIN_USER],
       });
       return json(200, { success: true });
+    }
+
+    if (event.httpMethod === 'GET' && pathname === '/admin/audit') {
+      // Director only (single-role model in this demo)
+      if (!isAdmin) return json(401, { error: 'No autorizado' });
+      const params = new URL(event.rawUrl).searchParams;
+      const actor = toText(params.get('actor'));
+      const action = toText(params.get('action'));
+      const pageNum = Math.max(1, toNumber(params.get('page'), 1));
+      const limitNum = Math.min(200, Math.max(1, toNumber(params.get('limit'), 50)));
+      const offset = (pageNum - 1) * limitNum;
+
+      const where: string[] = ['1=1'];
+      const args: Array<string | number> = [];
+      if (actor) { where.push('actor = ?'); args.push(actor); }
+      if (action) { where.push('action = ?'); args.push(action); }
+
+      const countRs = await db.execute({ sql: `SELECT COUNT(*) as total FROM audit_log WHERE ${where.join(' AND ')}`, args });
+      const total = Number((countRs.rows[0] as any)?.total || 0);
+      const rows = await db.execute({
+        sql: `SELECT id, actor, actor_role, action, target_type, target_id, details, ip, user_agent, created_at
+              FROM audit_log WHERE ${where.join(' AND ')} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+        args: [...args, limitNum, offset],
+      });
+      return json(200, {
+        data: rows.rows,
+        total,
+        page: pageNum,
+        limit: limitNum,
+        total_pages: Math.ceil(total / limitNum),
+      });
     }
 
     if (event.httpMethod === 'GET' && pathname === '/admin/executive-summary') {
