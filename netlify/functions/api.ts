@@ -468,6 +468,16 @@ export const handler = async (event: any) => {
       return json(200, { status: 'ok', db: 'turso' });
     }
 
+    if (event.httpMethod === 'GET' && pathname === '/version') {
+      return json(200, {
+        version: 'v3-bcrypt-multi-role-lopdp',
+        built_at: '2026-07-25',
+        features: ['bcrypt', '4-roles', 'arcos', 'audit-log', 'pdf', 'bulk-import', 'transparencia', 'privacidad', 'rate-limit', 'lopolis-endpoints'],
+        has_user_object_in_me: true,
+        has_admin_pass_hash_support: true,
+      });
+    }
+
     if (event.httpMethod === 'POST' && pathname === '/census') {
       const payload = event.body ? JSON.parse(event.body) : {};
       const data = normalizeInput(payload);
