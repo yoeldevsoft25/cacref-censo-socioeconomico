@@ -75,7 +75,6 @@ function Header() {
 }
 
 function ProtectedAdminRoute() {
-  console.log('[DEBUG] ProtectedAdminRoute RENDER');
   const [session, setSession] = useState<{ user: { username: string; role: string; name: string } } | null | 'loading'>('loading');
 
   useEffect(() => {
@@ -86,7 +85,8 @@ function ProtectedAdminRoute() {
         if (!cancelled) {
           if (res.ok) {
             const data = await res.json();
-            setSession(data);
+            // /api/admin/me returns { ok, user }; normalize to { user }
+            setSession(data?.user ? { user: data.user } : null);
           } else {
             setSession(null);
           }
