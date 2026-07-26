@@ -977,12 +977,35 @@ export const handler = async (event: any) => {
         ],
       });
 
+      // Vincular los archivos subidos previamente (que estaban con submission_id=NULL)
+      // con el censo recién creado. El frontend envía un array de {uploadId, fileType}.
+      const newSubmissionId = Number(result.lastInsertRowid ?? 0);
+      const attachments = Array.isArray((payload as any)?.attachments) ? (payload as any).attachments : [];
+      let filesAttached = 0;
+      for (const att of attachments) {
+        const uploadId = toText((att as any)?.uploadId);
+        if (!uploadId) continue;
+        await db.execute({
+          sql: 'UPDATE submission_files SET submission_id = ?, file_type = ? WHERE id = ? AND submission_id IS NULL',
+          args: [newSubmissionId, toText((att as any)?.fileType) || 'OTRO', uploadId],
+        });
+        filesAttached++;
+      }
+      // Marcar has_document si hay al menos un archivo
+      if (filesAttached > 0) {
+        await db.execute({
+          sql: 'UPDATE census_submissions SET has_document = 1 WHERE id = ?',
+          args: [newSubmissionId],
+        });
+      }
+
       return json(201, {
         success: true,
-        id: Number(result.lastInsertRowid ?? 0),
+        id: newSubmissionId,
         score: evaluation.score,
         recommendation: evaluation.recommendation,
         risk_level: evaluation.risk_level,
+        files_attached: filesAttached,
       });
     }
 
