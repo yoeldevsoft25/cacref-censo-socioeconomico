@@ -12,8 +12,12 @@ import {
   UNIT_OPTIONS,
   CARGO_OPTIONS,
   YEARS_OF_SERVICE_RANGES,
+  ESTADO_OPTIONS,
+  MUNICIPIOS_POR_ESTADO,
   getDirectionsForVP,
+  getMunicipiosForEstado,
 } from '../data/catalog';
+import { MapPin, Loader2 } from 'lucide-react';
 
 const STEPS = [
   { id: 'personal', title: 'Datos Personales', subtitle: 'Información de contacto', icon: User },
@@ -164,6 +168,194 @@ function VinculacionStep({ formData, setFormData, handleInputChange, toggleField
           icon={Briefcase}
           label="Soy socio activo de CACREF"
           desc="Cooperativa de Ahorro y Préstamo de Trabajadores"
+        />
+      </div>
+    </div>
+  );
+}
+
+interface PersonalStepProps {
+  formData: any;
+  setFormData: React.Dispatch<React.SetStateAction<any>>;
+  handleInputChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => void;
+  setAttachment: (kind: keyof any, file: UploadedFile | null) => void;
+  FileUploadField: React.ComponentType<any>;
+  inputCls: string;
+  Label: React.ComponentType<{ children: React.ReactNode; required?: boolean }>;
+}
+
+/**
+ * Step 1 del censo: datos personales + ubicación geográfica.
+ * - Estado en cascada: cambiar estado resetea el municipio.
+ * - Geolocalización opcional: usa navigator.geolocation con permiso del navegador.
+ *   El usuario puede borrar o sobreescribir el resultado (LOPDP-friendly).
+ * - Si la geolocalización falla o es denegada, el usuario completa manualmente.
+ */
+function PersonalStep({ formData, setFormData, handleInputChange, setAttachment, FileUploadField, inputCls, Label }: PersonalStepProps) {
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [geoError, setGeoError] = useState('');
+
+  // Cascada: municipios según el estado seleccionado
+  const municipioOptions = useMemo(
+    () => getMunicipiosForEstado(formData.estado),
+    [formData.estado]
+  );
+
+  // Al cambiar estado, resetear municipio
+  const handleEstadoChange = (estado: string) => {
+    setFormData((prev: any) => ({
+      ...prev,
+      estado,
+      municipio: '',
+    }));
+  };
+
+  // Geolocalización: prioriza simplicidad. Un click → autocompleta estado + municipio.
+  // Si el navegador no puede resolver, deja los campos vacíos para que el usuario complete manual.
+  const requestGeolocation = () => {
+    if (!('geolocation' in navigator)) {
+      setGeoError('Tu navegador no soporta geolocalización.');
+      return;
+    }
+    setGeoLoading(true);
+    setGeoError('');
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          // Reverse geocoding vía API pública. Nominatim (OpenStreetMap) es gratis y respeta privacidad.
+          const { latitude, longitude } = pos.coords;
+          const resp = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=es&zoom=10`
+          );
+          if (!resp.ok) throw new Error('No se pudo determinar la ubicación.');
+          const data = await resp.json();
+          const address = data.address || {};
+          // Nominatim devuelve "state" (estado) y "county"/"city"/"municipality" (municipio)
+          const estadoNombre = address.state || address.region || '';
+          const municipioNombre = address.county || address.city || address.municipality || '';
+          // Mapear el nombre que devuelve Nominatim a las opciones del catálogo
+          const estadoMatch = ESTADO_OPTIONS.find(
+            (e) => e && estadoNombre.toLowerCase().includes(e.toLowerCase())
+          );
+          const municipiosList = estadoMatch ? MUNICIPIOS_POR_ESTADO[estadoMatch] || [] : [];
+          const municipioMatch = municipiosList.find(
+            (m) => m && municipioNombre.toLowerCase().includes(m.toLowerCase())
+          );
+          setFormData((prev: any) => ({
+            ...prev,
+            estado: estadoMatch || prev.estado,
+            municipio: municipioMatch || prev.municipio,
+          }));
+        } catch (e: any) {
+          setGeoError('No pudimos determinar tu ubicación. Completa manualmente.');
+        } finally {
+          setGeoLoading(false);
+        }
+      },
+      (err) => {
+        setGeoError(err.message || 'Permiso de ubicación denegado.');
+        setGeoLoading(false);
+      },
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60_000 }
+    );
+  };
+
+  return (
+    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+      <div className="sm:col-span-2">
+        <Label>Nombre y Apellido *</Label>
+        <input type="text" name="nombre_apellido" value={formData.nombre_apellido} onChange={handleInputChange} className={inputCls} placeholder="Nombres y Apellidos completos" />
+      </div>
+      <div>
+        <Label>Cédula de Identidad *</Label>
+        <input
+          type="text"
+          name="cedula"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          value={formData.cedula}
+          onChange={(e) => { setFormData((p: any) => ({ ...p, cedula: e.target.value.replace(/\D/g, '') })); }}
+          className={inputCls}
+          placeholder="Solo números"
+          maxLength={12}
+        />
+      </div>
+      <div>
+        <Label>Teléfono Celular *</Label>
+        <input
+          type="tel"
+          name="telefono"
+          inputMode="tel"
+          value={formData.telefono}
+          onChange={handleInputChange}
+          className={inputCls}
+          placeholder="Ej. 04141234567"
+          maxLength={15}
+        />
+      </div>
+      <div className="sm:col-span-2">
+        <Label>Correo Electrónico *</Label>
+        <input
+          type="email"
+          name="correo"
+          inputMode="email"
+          value={formData.correo}
+          onChange={handleInputChange}
+          className={inputCls}
+          placeholder="correo@ejemplo.com"
+        />
+      </div>
+      <div className="sm:col-span-2 rounded-xl border border-slate-200 bg-slate-50/40 p-4">
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <div>
+            <p className="text-sm font-semibold text-slate-800">Ubicación</p>
+            <p className="text-[11px] text-slate-500">Para reportes agregados por estado (LOPDP: no guardamos tu dirección exacta)</p>
+          </div>
+          <button
+            type="button"
+            onClick={requestGeolocation}
+            disabled={geoLoading}
+            className="inline-flex items-center gap-2 px-3 py-2 text-xs font-semibold rounded-lg bg-white border border-slate-300 hover:border-red-400 hover:text-red-600 text-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {geoLoading ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <MapPin className="w-3.5 h-3.5" />
+            )}
+            {geoLoading ? 'Detectando...' : 'Usar mi ubicación'}
+          </button>
+        </div>
+        {geoError && (
+          <p className="mb-2 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2">{geoError}</p>
+        )}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <FormSelect
+            label="Estado *"
+            required
+            options={ESTADO_OPTIONS}
+            value={formData.estado || ''}
+            onChange={handleEstadoChange}
+            placeholder="Selecciona tu estado"
+          />
+          <CascadingSelect
+            label="Municipio"
+            value={formData.municipio || ''}
+            onChange={(v) => handleInputChange({ target: { name: 'municipio', value: v } } as any)}
+            options={municipioOptions}
+            disabled={!formData.estado}
+            placeholder={formData.estado ? 'Selecciona tu municipio' : 'Selecciona un estado primero'}
+            hint={formData.estado ? 'Opcional pero ayuda a CACREF a segmentar mejor' : undefined}
+          />
+        </div>
+      </div>
+      <div className="sm:col-span-2">
+        <FileUploadField
+          label="Foto de cédula (frontal)"
+          description="Sube una foto clara del frente de tu cédula de identidad"
+          fileType="CEDULA"
+          required
+          value={formData.attachments.cedula}
+          onChange={(f: UploadedFile | null) => setAttachment('cedula', f)}
         />
       </div>
     </div>
@@ -420,34 +612,15 @@ export default function CensusForm() {
 
                 {/* ── Step 1: Personal ── */}
                 {currentStep === 0 && (
-                  <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                    <div className="sm:col-span-2">
-                      <Label>Nombre y Apellido *</Label>
-                      <input type="text" name="nombre_apellido" value={formData.nombre_apellido} onChange={handleInputChange} className={inputCls} placeholder="Nombres y Apellidos completos" />
-                    </div>
-                    <div>
-                      <Label>Cédula de Identidad *</Label>
-                      <input type="text" name="cedula" value={formData.cedula} onChange={(e) => { setFormData(p => ({ ...p, cedula: e.target.value.replace(/\D/g, '') })); }} className={inputCls} placeholder="Solo números" />
-                    </div>
-                    <div>
-                      <Label>Teléfono Celular *</Label>
-                      <input type="tel" name="telefono" value={formData.telefono} onChange={handleInputChange} className={inputCls} placeholder="Ej. 04141234567" />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <Label>Correo Electrónico *</Label>
-                      <input type="email" name="correo" value={formData.correo} onChange={handleInputChange} className={inputCls} placeholder="correo@ejemplo.com" />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <FileUploadField
-                        label="Foto de cédula (frontal)"
-                        description="Sube una foto clara del frente de tu cédula de identidad"
-                        fileType="CEDULA"
-                        required
-                        value={formData.attachments.cedula}
-                        onChange={(f) => setAttachment('cedula', f)}
-                      />
-                    </div>
-                  </div>
+                  <PersonalStep
+                    formData={formData}
+                    setFormData={setFormData}
+                    handleInputChange={handleInputChange}
+                    setAttachment={setAttachment}
+                    FileUploadField={FileUploadField}
+                    inputCls={inputCls}
+                    Label={Label}
+                  />
                 )}
 
                 {/* ── Step 2: Vinculación ── */}
