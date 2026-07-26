@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type ComponentType, type ReactNode } from 'react';
+import { GERENCIA_OPTIONS } from '../data/catalog';
 import {
   Activity,
   Briefcase,
@@ -468,14 +469,19 @@ export default function AdminDashboard({ user }: { user?: { username: string; ro
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-5">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Gerencia</label>
-            <input
-              type="text"
+            <select
               name="gerencia"
               value={filters.gerencia}
               onChange={handleFilterChange}
-              placeholder="Filtrar por gerencia"
               className="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-red-600 focus:border-red-600"
-            />
+            >
+              <option value="">Todas las gerencias</option>
+              {GERENCIA_OPTIONS.filter((g) => g !== '').map((g) => (
+                <option key={g} value={g}>
+                  {g}
+                </option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Ingreso Minimo ($)</label>

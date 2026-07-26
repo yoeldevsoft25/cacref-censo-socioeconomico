@@ -1,7 +1,19 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle2, ChevronRight, ChevronLeft, Briefcase, User, CreditCard, HeartPulse, Pill, Shield, Stethoscope, Users, Sparkles } from 'lucide-react';
 import FileUploadField, { type UploadedFile } from './FileUploadField';
+import { CascadingSelect, FormSelect } from './CascadingSelect';
+import {
+  COMPANY_OPTIONS,
+  REGIMEN_OPTIONS,
+  VICEPRESIDENCY_OPTIONS,
+  DIRECTIONS_BY_VP,
+  GERENCIA_OPTIONS,
+  UNIT_OPTIONS,
+  CARGO_OPTIONS,
+  YEARS_OF_SERVICE_RANGES,
+  getDirectionsForVP,
+} from '../data/catalog';
 
 const STEPS = [
   { id: 'personal', title: 'Datos Personales', subtitle: 'Información de contacto', icon: User },
@@ -9,6 +21,154 @@ const STEPS = [
   { id: 'socioeconomico', title: 'Situación Económica', subtitle: 'Ingresos y capacidad de aporte', icon: CreditCard },
   { id: 'salud', title: 'Salud y Calidad de Vida', subtitle: 'Necesidades médicas y bienestar', icon: HeartPulse },
 ];
+
+interface VinculacionStepProps {
+  formData: any;
+  setFormData: React.Dispatch<React.SetStateAction<any>>;
+  handleInputChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => void;
+  toggleField: (field: keyof any) => void;
+  errors: Record<string, string>;
+  ToggleCard: React.ComponentType<{
+    id: string;
+    checked: boolean;
+    onToggle: () => void;
+    icon: React.ComponentType<{ className?: string }>;
+    label: string;
+    desc?: string;
+  }>;
+}
+
+/**
+ * Step 2 del censo: datos laborales e institucionales con selects en cascada.
+ * - Empresa → filtra (no, pero la estructura es libre: la DE filtra por VP, etc.)
+ * - Vicepresidencia → filtra Direcciones Ejecutivas disponibles
+ * - Gerencia y Unidad Operativa son independientes (no cascada entre sí, pero
+ *   pueden ser validadas luego contra el mismo campo en la DB).
+ * - Cargo usa el catálogo completo; Años de Servicio tiene input numérico + select de rango.
+ * - Si el usuario elige "socio activo", se obliga a confirmar; si no, los demás campos
+ *   siguen siendo opcionales.
+ */
+function VinculacionStep({ formData, setFormData, handleInputChange, toggleField, errors, ToggleCard }: VinculacionStepProps) {
+  // Opciones derivadas según la VP seleccionada (cascada).
+  const direccionOptions = useMemo(
+    () => getDirectionsForVP(formData.vicepresidencia),
+    [formData.vicepresidencia]
+  );
+
+  // Al cambiar VP, resetear DE para evitar valores inválidos.
+  const handleVPChange = (vp: string) => {
+    setFormData((prev: any) => ({
+      ...prev,
+      vicepresidencia: vp,
+      direccion_ejecutiva: '',
+    }));
+  };
+
+  const handleDEChange = (de: string) => {
+    handleInputChange({
+      target: { name: 'direccion_ejecutiva', value: de },
+    } as any);
+  };
+
+  return (
+    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+      <FormSelect
+        label="Empresa / Filial"
+        options={COMPANY_OPTIONS}
+        value={formData.region_sede || ''}
+        onChange={(v) => handleInputChange({ target: { name: 'region_sede', value: v } } as any)}
+        className="sm:col-span-2"
+        hint="Si es jubilado o de otra empresa, seleccione la que corresponda"
+      />
+      <FormSelect
+        label="Régimen de trabajo"
+        options={REGIMEN_OPTIONS}
+        value={formData.regimen || ''}
+        onChange={(v) => handleInputChange({ target: { name: 'regimen', value: v } } as any)}
+        placeholder="Seleccione..."
+        className="sm:col-span-2"
+      />
+      <CascadingSelect
+        label="Vicepresidencia"
+        value={formData.vicepresidencia || ''}
+        onChange={handleVPChange}
+        options={VICEPRESIDENCY_OPTIONS}
+        resetOnEmpty
+        hint="Si es jubilado, beneficiario o de empresa externa, deje en blanco o seleccione 'No aplica'"
+      />
+      <CascadingSelect
+        label="Dirección Ejecutiva"
+        value={formData.direccion_ejecutiva || ''}
+        onChange={handleDEChange}
+        options={direccionOptions}
+        resetOnEmpty
+        disabled={!formData.vicepresidencia}
+        hint="Las opciones se filtran según la Vicepresidencia elegida"
+      />
+      <CascadingSelect
+        label="Gerencia"
+        required
+        value={formData.gerencia || ''}
+        onChange={(v) => handleInputChange({ target: { name: 'gerencia', value: v } } as any)}
+        options={GERENCIA_OPTIONS}
+        error={errors.gerencia}
+      />
+      <CascadingSelect
+        label="Unidad Operativa"
+        value={formData.unidad_operativa || ''}
+        onChange={(v) => handleInputChange({ target: { name: 'unidad_operativa', value: v } } as any)}
+        options={UNIT_OPTIONS}
+      />
+      <div>
+        <label htmlFor="anos_servicio" className="block text-xs font-tech tracking-wider uppercase text-slate-600 mb-2">
+          Años de Servicio *
+        </label>
+        <input
+          id="anos_servicio"
+          type="number"
+          name="anos_servicio"
+          min="0"
+          max="50"
+          value={formData.anos_servicio}
+          onChange={handleInputChange}
+          className={`w-full px-4 py-3 bg-white border rounded-xl text-slate-900 focus:outline-none focus:ring-2 shadow-sm transition-all ${
+            errors.anos_servicio ? 'border-red-400 focus:ring-red-500' : 'border-slate-300 focus:ring-red-500 focus:border-red-500'
+          }`}
+          placeholder="Años"
+        />
+        {errors.anos_servicio && (
+          <p className="mt-1.5 text-[11px] text-red-600 font-medium">{errors.anos_servicio}</p>
+        )}
+      </div>
+      <FormSelect
+        label="Rango de antigüedad (Convención Colectiva)"
+        options={YEARS_OF_SERVICE_RANGES.map((r) => ({ value: r.value, label: r.label }))}
+        value={formData.anos_servicio_rango || ''}
+        onChange={(v) => handleInputChange({ target: { name: 'anos_servicio_rango', value: v } } as any)}
+        hint="Referencia para beneficios por antigüedad según CCT"
+      />
+      <CascadingSelect
+        label="Cargo Actual *"
+        required
+        value={formData.cargo || ''}
+        onChange={(v) => handleInputChange({ target: { name: 'cargo', value: v } } as any)}
+        options={CARGO_OPTIONS}
+        error={errors.cargo}
+        className="sm:col-span-2"
+      />
+      <div className="sm:col-span-2">
+        <ToggleCard
+          id="afiliado_cacref"
+          checked={formData.afiliado_cacref}
+          onToggle={() => toggleField('afiliado_cacref')}
+          icon={Briefcase}
+          label="Soy socio activo de CACREF"
+          desc="Cooperativa de Ahorro y Préstamo de Trabajadores"
+        />
+      </div>
+    </div>
+  );
+}
 
 export default function CensusForm() {
   const [currentStep, setCurrentStep] = useState(0);
@@ -19,6 +179,7 @@ export default function CensusForm() {
   const [error, setError] = useState('');
   const [canSubmitFinalStep, setCanSubmitFinalStep] = useState(false);
   const [attachedCount, setAttachedCount] = useState(0);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const [formData, setFormData] = useState({
     nombre_apellido: '',
@@ -291,35 +452,14 @@ export default function CensusForm() {
 
                 {/* ── Step 2: Vinculación ── */}
                 {currentStep === 1 && (
-                  <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                    <div>
-                      <Label>Vicepresidencia</Label>
-                      <input type="text" name="vicepresidencia" value={formData.vicepresidencia} onChange={handleInputChange} className={inputCls} placeholder="Ej. VP de Operaciones" />
-                    </div>
-                    <div>
-                      <Label>Dirección Ejecutiva</Label>
-                      <input type="text" name="direccion_ejecutiva" value={formData.direccion_ejecutiva} onChange={handleInputChange} className={inputCls} placeholder="Ej. Dir. Ejecutiva Comercial" />
-                    </div>
-                    <div>
-                      <Label>Gerencia *</Label>
-                      <input type="text" name="gerencia" value={formData.gerencia} onChange={handleInputChange} className={inputCls} placeholder="Ej. Gerencia de Transporte" />
-                    </div>
-                    <div>
-                      <Label>Unidad Operativa</Label>
-                      <input type="text" name="unidad_operativa" value={formData.unidad_operativa} onChange={handleInputChange} className={inputCls} placeholder="Ej. Unidad de Distribución" />
-                    </div>
-                    <div>
-                      <Label>Años de Servicio *</Label>
-                      <input type="number" name="anos_servicio" min="0" value={formData.anos_servicio} onChange={handleInputChange} className={inputCls} placeholder="Años" />
-                    </div>
-                    <div>
-                      <Label>Cargo Actual *</Label>
-                      <input type="text" name="cargo" value={formData.cargo} onChange={handleInputChange} className={inputCls} placeholder="Denominación de Rol" />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <ToggleCard id="afiliado_cacref" checked={formData.afiliado_cacref} onToggle={() => toggleField('afiliado_cacref')} icon={Briefcase} label="Soy socio activo de CACREF" desc="Cooperativa de Ahorro y Préstamo de Trabajadores" />
-                    </div>
-                  </div>
+                  <VinculacionStep
+                    formData={formData}
+                    setFormData={setFormData}
+                    handleInputChange={handleInputChange}
+                    toggleField={toggleField}
+                    errors={errors}
+                    ToggleCard={ToggleCard}
+                  />
                 )}
 
                 {/* ── Step 3: Socioeconómico ── */}
