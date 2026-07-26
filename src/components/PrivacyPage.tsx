@@ -177,13 +177,23 @@ export default function PrivacyPage() {
               <Download className="w-5 h-5 text-red-600" />
               11. Marco legal aplicable
             </h2>
-            <ul className="text-sm text-slate-700 list-disc pl-5 space-y-1">
-              <li>Constitucion de la Republica Bolivariana de Venezuela (art. 28, 60, 61)</li>
-              <li>Ley Organica de Proteccion de Datos Personales (Gaceta Oficial 6.079 Ext. del 24-11-2021)</li>
-              <li>Ley Organica del Trabajo, los Trabajadores y las Trabajadoras (LOTTT)</li>
-              <li>Ley Organica de la Administracion Publica</li>
+            <ul className="text-sm text-slate-700 list-disc pl-5 space-y-1 mb-3">
+              <li>Constitucion de la Republica Bolivariana de Venezuela (art. 28, 60, 61, 143)</li>
+              <li>Ley Organica de Proteccion de Datos Personales - LOPDP (Gaceta Oficial 6.079 Ext. del 24-11-2021)</li>
+              <li>Ley del Infogobierno (Gaceta Oficial 6.806 Ext. del 22-08-2024)</li>
+              <li>Ley Organica de Salud (art. 53: confidencialidad de datos de salud)</li>
+              <li>Ley Organica del Trabajo, los Trabajadores y las Trabajadoras - LOTTT (art. 56: prohibicion de divulgacion)</li>
+              <li>Ley Contra la Corrupcion (art. 91: uso indebido de datos)</li>
+              <li>Codigo Civil Venezolano (arts. 1.133 y 1.165)</li>
               <li>Decretos y resoluciones de la Superintendencia de Proteccion de Datos Personales</li>
             </ul>
+            <Link
+              to="/legal"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-700 hover:text-red-800"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Ver marco legal completo y analisis por articulo
+            </Link>
           </section>
 
           <section>
@@ -199,6 +209,10 @@ export default function PrivacyPage() {
           <div className="text-center text-xs text-slate-400 pt-6 border-t border-slate-200">
             <p>Documento generado conforme a la LOPDP Venezuela 2021</p>
             <p className="mt-1">CACREF &middot; Censo Socioeconomico y de Salud &middot; 2026</p>
+            <Link to="/legal" className="inline-flex items-center gap-1.5 mt-3 text-red-700 hover:text-red-800 font-semibold">
+              <Download className="w-3.5 h-3.5" />
+              Ver marco legal y normativo completo
+            </Link>
           </div>
         </div>
       </div>

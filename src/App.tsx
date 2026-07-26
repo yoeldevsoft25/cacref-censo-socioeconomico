@@ -11,6 +11,7 @@ import TransparencyPage from './components/TransparencyPage';
 import ConsultationPage from './components/ConsultationPage';
 import NotificationBell from './components/NotificationBell';
 import PrivacyPage from './components/PrivacyPage';
+import LegalPage from './components/LegalPage';
 
 function Header() {
   const location = useLocation();
@@ -166,6 +167,7 @@ export default function App() {
           <Route path="/" element={<CensusForm />} />
           <Route path="/metodologia" element={<MethodologyPage />} />
           <Route path="/privacidad" element={<PrivacyPage />} />
+          <Route path="/legal" element={<LegalPage />} />
           <Route path="/consulta" element={<ConsultationPage />} />
           <Route path="/transparencia" element={<TransparencyPage />} />
         </Route>
