@@ -1882,6 +1882,36 @@ async function startServer() {
     }
   });
 
+  app.get('/api/transparencia/geo', async (_req, res) => {
+    try {
+      const TOPO_NAME: Record<string, string> = {
+        'La Guaira': 'Vargas',
+      };
+      const rows = await queryAll<any>(
+        `SELECT
+           region_sede as estado,
+           COUNT(*) as total,
+           SUM(CASE WHEN recommendation = 'APROBADO_PRIORIDAD_ALTA' THEN 1 ELSE 0 END) as prioridad_alta,
+           SUM(CASE WHEN recommendation = 'REQUIERE_COMITE' THEN 1 ELSE 0 END) as requiere_comite
+         FROM census_submissions
+         WHERE region_sede IS NOT NULL AND region_sede != ''
+         GROUP BY region_sede`
+      );
+      res.json({
+        estados: rows.map((r: any) => ({
+          estado: r.estado,
+          topo_name: TOPO_NAME[r.estado] || r.estado,
+          total: Number(r.total || 0),
+          prioridad_alta: Number(r.prioridad_alta || 0),
+          requiere_comite: Number(r.requiere_comite || 0),
+        })),
+      });
+    } catch (err) {
+      console.error('Geo transparency error:', err);
+      res.status(500).json({ error: 'Error interno del servidor.' });
+    }
+  });
+
   app.get('/api/admin/executive-summary', requireAdminAuth, async (_req, res) => {
     try {
       const total = await queryOne<{ total: number }>('SELECT COUNT(*) as total FROM census_submissions');

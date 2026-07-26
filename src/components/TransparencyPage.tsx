@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Activity, CheckCircle2, Clock, Users, Pill, Stethoscope, Heart, TrendingUp, FileText, Shield } from 'lucide-react';
+import VenezuelaMap from './VenezuelaMap';
 
 const GERENCIA_COLORS = ['#dc2626', '#3b82f6', '#f59e0b', '#10b981', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1'];
 
@@ -108,6 +109,20 @@ export default function TransparencyPage() {
             <p className="text-xs text-slate-500 mt-1">Promedio en estado</p>
           </div>
         </div>
+
+        {/* Mapa coroplético de Venezuela con densidad de censos por estado */}
+        <section className="bg-white rounded-2xl border border-slate-200 p-6 mb-8 shadow-sm">
+          <div className="mb-4">
+            <h2 className="text-lg font-display font-bold text-slate-900 flex items-center gap-2">
+              <Activity className="w-4 h-4 text-red-600" />
+              Distribucion geografica del censo
+            </h2>
+            <p className="text-xs text-slate-500 mt-1">
+              Densidad de censos recibidos por estado. Pasa el cursor sobre cada estado para ver el detalle.
+            </p>
+          </div>
+          <VenezuelaMap />
+        </section>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">

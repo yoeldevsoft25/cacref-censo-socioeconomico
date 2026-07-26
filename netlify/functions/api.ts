@@ -618,6 +618,38 @@ export const handler = async (event: any) => {
       }
     }
 
+    if (event.httpMethod === 'GET' && pathname === '/transparencia/geo') {
+      try {
+        const rs = await db.execute(`
+          SELECT
+            region_sede as estado,
+            COUNT(*) as total,
+            SUM(CASE WHEN recommendation = 'APROBADO_PRIORIDAD_ALTA' THEN 1 ELSE 0 END) as prioridad_alta,
+            SUM(CASE WHEN recommendation = 'REQUIERE_COMITE' THEN 1 ELSE 0 END) as requiere_comite
+          FROM census_submissions
+          WHERE region_sede IS NOT NULL AND region_sede != ''
+          GROUP BY region_sede
+        `);
+        // Mapeo nombre de estado del formulario -> nombre del TopoJSON
+        const TOPO_NAME: Record<string, string> = {
+          'Distrito Capital': 'Distrito Capital',
+          'La Guaira': 'Vargas', // legacy
+          'Nueva Esparta': 'Nueva Esparta',
+        };
+        const items = (rs.rows as any[]).map((r) => ({
+          estado: r.estado,
+          topo_name: TOPO_NAME[r.estado] || r.estado,
+          total: Number(r.total || 0),
+          prioridad_alta: Number(r.prioridad_alta || 0),
+          requiere_comite: Number(r.requiere_comite || 0),
+        }));
+        return json(200, { estados: items });
+      } catch (err) {
+        console.error('Geo error:', err);
+        return json(500, { error: 'Error interno del servidor.' });
+      }
+    }
+
     if (event.httpMethod === 'GET' && pathname === '/version') {
       return json(200, {
         version: 'v3-bcrypt-multi-role-lopdp',

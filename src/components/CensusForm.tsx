@@ -202,9 +202,11 @@ function PersonalStep({ formData, setFormData, handleInputChange, setAttachment,
   );
 
   // Al cambiar estado, resetear municipio
+  // (Guardamos en `region_sede` para consistencia con el backend del censo)
   const handleEstadoChange = (estado: string) => {
     setFormData((prev: any) => ({
       ...prev,
+      region_sede: estado,
       estado,
       municipio: '',
     }));
