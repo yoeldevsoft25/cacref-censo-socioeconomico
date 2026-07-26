@@ -122,6 +122,68 @@ export default function ConsultationPage() {
   const [submitting, setSubmitting] = useState(false);
   const [data, setData] = useState<CensusStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Estados para los flujos ARCO
+  const [exporting, setExporting] = useState(false);
+  const [exportMessage, setExportMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteToken, setDeleteToken] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [deleteMessage, setDeleteMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+
+  const handleExport = async () => {
+    if (!data?.cedula) return;
+    setExporting(true);
+    setExportMessage(null);
+    try {
+      const res = await fetch(`/api/census/export/${encodeURIComponent(data.cedula)}`, { method: 'POST' });
+      if (!res.ok) throw new Error('No se pudo generar la exportación.');
+      const json = await res.json();
+      const blob = new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `cacref-mis-datos-${data.cedula}-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setExportMessage({ type: 'ok', text: 'Archivo descargado. Conservalo como prueba del ejercicio de tu derecho de portabilidad (LOPDP Art. 25).' });
+    } catch (e: any) {
+      setExportMessage({ type: 'err', text: e?.message || 'Error al exportar.' });
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!data?.cedula) return;
+    if (deleteToken !== 'ELIMINAR') {
+      setDeleteMessage({ type: 'err', text: 'Debe escribir ELIMINAR en mayúsculas para confirmar.' });
+      return;
+    }
+    setDeleting(true);
+    setDeleteMessage(null);
+    try {
+      const res = await fetch(`/api/census/delete/${encodeURIComponent(data.cedula)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm: 'ELIMINAR' }),
+      });
+      const json = await res.json().catch(() => ({} as any));
+      if (!res.ok) throw new Error(json?.error || 'No se pudo procesar la solicitud.');
+      setDeleteMessage({
+        type: 'ok',
+        text: 'Sus datos personales fueron anonimizados conforme a la LOPDP. Esta consulta ya no mostrará detalles.',
+      });
+      setShowDeleteModal(false);
+      setDeleteToken('');
+      setData(null);
+    } catch (e: any) {
+      setDeleteMessage({ type: 'err', text: e?.message || 'Error al eliminar.' });
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -422,53 +484,31 @@ export default function ConsultationPage() {
                 </p>
                 <div className="flex flex-col sm:flex-row gap-2">
                   <button
-                    onClick={async () => {
-                      try {
-                        const res = await fetch(`/api/census/export/${data.cedula}`, { method: 'POST' });
-                        if (!res.ok) throw new Error('Error');
-                        const blob = await res.blob();
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = `mis-datos-${data.cedula}.json`;
-                        a.click();
-                        URL.revokeObjectURL(url);
-                      } catch (err) {
-                        alert('Error al exportar');
-                      }
-                    }}
-                    className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+                    onClick={handleExport}
+                    disabled={exporting}
+                    className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    <Download className="w-3.5 h-3.5" />
-                    Descargar mis datos (JSON)
+                    {exporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                    {exporting ? 'Generando…' : 'Descargar mis datos (JSON)'}
                   </button>
                   <button
-                    onClick={async () => {
-                      if (!window.confirm('Esta accion anonimizara permanentemente sus datos personales. Es IRREVERSIBLE. Desea continuar?')) return;
-                      const token = window.prompt('Para confirmar, escriba ELIMINAR en mayusculas:');
-                      if (token !== 'ELIMINAR') {
-                        alert('Confirmacion cancelada o incorrecta.');
-                        return;
-                      }
-                      try {
-                        const res = await fetch(`/api/census/delete/${data.cedula}`, {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ confirm: 'ELIMINAR' }),
-                        });
-                        if (!res.ok) throw new Error('Error');
-                        alert('Sus datos han sido anonimizados. Esta consulta ya no mostrara detalles.');
-                        window.location.reload();
-                      } catch (err) {
-                        alert('Error al eliminar');
-                      }
-                    }}
+                    onClick={() => { setShowDeleteModal(true); setDeleteToken(''); setDeleteMessage(null); }}
                     className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg border border-red-300 text-red-700 hover:bg-red-50"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     Solicitar eliminacion de mis datos
                   </button>
                 </div>
+                {exportMessage && (
+                  <div className={`text-xs p-3 rounded-lg ${exportMessage.type === 'ok' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+                    {exportMessage.text}
+                  </div>
+                )}
+                {deleteMessage && (
+                  <div className={`text-xs p-3 rounded-lg ${deleteMessage.type === 'ok' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+                    {deleteMessage.text}
+                  </div>
+                )}
               </section>
 
               <section className="flex items-start gap-3 bg-slate-50 border border-slate-200 rounded-2xl p-5">
@@ -483,6 +523,89 @@ export default function ConsultationPage() {
           )}
         </AnimatePresence>
       </div>
+
+      {/* Modal de confirmación de eliminación (LOPDP) */}
+      <AnimatePresence>
+        {showDeleteModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-slate-900/50 backdrop-blur-sm"
+            onClick={() => !deleting && setShowDeleteModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden"
+            >
+              <div className="h-1 w-full bg-gradient-to-r from-red-700 via-red-500 to-red-700" />
+              <div className="p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                    <AlertTriangle className="w-5 h-5 text-red-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-900">Eliminación de datos personales</h3>
+                    <p className="text-xs text-slate-500">Art. 25 LOPDP — Cancelación</p>
+                  </div>
+                </div>
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 text-xs text-amber-900 leading-relaxed">
+                  <strong>Esta acción es irreversible.</strong> Sus datos personales (nombre, cédula, correo, teléfono, archivos adjuntos) serán <strong>anonimizados</strong> de forma permanente. El registro administrativo del censo se conserva con fines estadísticos, pero ya no contendrá información personal identificable.
+                </div>
+                <label htmlFor="delete-confirm" className="block text-xs font-tech tracking-wider uppercase text-slate-600 mb-2">
+                  Para confirmar, escriba <code className="bg-slate-100 px-1.5 py-0.5 rounded text-red-700 font-mono">ELIMINAR</code> en mayúsculas:
+                </label>
+                <input
+                  id="delete-confirm"
+                  type="text"
+                  value={deleteToken}
+                  onChange={(e) => setDeleteToken(e.target.value)}
+                  placeholder="Escriba ELIMINAR"
+                  disabled={deleting}
+                  className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 font-mono"
+                  autoComplete="off"
+                />
+                {deleteMessage && (
+                  <div className={`mt-3 text-xs p-3 rounded-lg ${deleteMessage.type === 'ok' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+                    {deleteMessage.text}
+                  </div>
+                )}
+                <div className="mt-5 flex gap-2">
+                  <button
+                    onClick={() => { setShowDeleteModal(false); setDeleteToken(''); }}
+                    disabled={deleting}
+                    className="flex-1 px-4 py-2.5 text-sm font-semibold rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleDelete}
+                    disabled={deleting || deleteToken !== 'ELIMINAR'}
+                    className="flex-1 px-4 py-2.5 text-sm font-semibold rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
+                  >
+                    {deleting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Anonimizando…
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="w-4 h-4" />
+                        Anonimizar mis datos
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

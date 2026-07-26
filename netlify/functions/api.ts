@@ -837,6 +837,81 @@ export const handler = async (event: any) => {
       }
     }
 
+    // ARCO: Portabilidad (Art. 25 LOPDP) - exporta todos los datos del titular en JSON
+    if (event.httpMethod === 'POST' && /^\/census\/export\/\d{5,12}$/.test(pathname)) {
+      try {
+        const cedula = pathname.split('/')[3];
+        const rowRs = await db.execute({
+          sql: 'SELECT * FROM census_submissions WHERE cedula = ? LIMIT 1',
+          args: [cedula],
+        });
+        const row = rowRs.rows[0] as any;
+        if (!row) return json(404, { found: false, error: 'Cedula no encontrada' });
+        const filesRs = await db.execute({
+          sql: 'SELECT file_type, original_name, mime_type, size_bytes, uploaded_at FROM submission_files WHERE submission_id = ?',
+          args: [row.id],
+        });
+        const historyRs = await db.execute({
+          sql: 'SELECT from_status, to_status, note, changed_at FROM workflow_history WHERE submission_id = ? ORDER BY changed_at ASC',
+          args: [row.id],
+        });
+        return json(200, {
+          exportado_en: new Date().toISOString(),
+          formato: 'JSON LOPDP Art. 25 (Portabilidad)',
+          sujeto: {
+            nombre_apellido: row.nombre_apellido,
+            cedula: row.cedula,
+            correo: row.correo,
+            telefono: row.telefono,
+          },
+          vinculacion: {
+            gerencia: row.gerencia,
+            unidad_operativa: row.unidad_operativa,
+            cargo: row.cargo,
+            anos_servicio: row.anos_servicio,
+            vicepresidencia: row.vicepresidencia,
+            direccion_ejecutiva: row.direccion_ejecutiva,
+          },
+          socioeconomico: {
+            ingreso_individual: row.ingreso_individual,
+            ingreso_familiar: row.ingreso_familiar,
+            capacidad_cuota: row.capacidad_cuota,
+            afiliado_cacref: Boolean(row.afiliado_cacref),
+          },
+          salud: {
+            requiere_medicamento_cronico: Boolean(row.requiere_medicamento_cronico),
+            medicamento_detalle: row.medicamento_detalle,
+            requiere_cirugia: Boolean(row.requiere_cirugia),
+            cirugia_detalle: row.cirugia_detalle,
+            familiar_requiere_asistencia: Boolean(row.familiar_requiere_asistencia),
+            calidad_vida_escala: row.calidad_vida_escala,
+          },
+          evaluacion: {
+            score: row.score,
+            recommendation: row.recommendation,
+            risk_level: row.risk_level,
+            priority_bucket: row.priority_bucket,
+            affordability_ratio: row.affordability_ratio,
+            suggested_max_quota: row.suggested_max_quota,
+          },
+          workflow: {
+            estado_actual: row.workflow_status,
+            asignado_a: row.assigned_to,
+            decision_tipo: row.decision_tipo,
+            decision_monto: row.decision_monto,
+            decision_observaciones: row.decision_observaciones,
+            decision_at: row.decision_at,
+          },
+          archivos: filesRs.rows,
+          historial_workflow: historyRs.rows,
+          creado_en: row.created_at,
+        });
+      } catch (err) {
+        console.error('Export error:', err);
+        return json(500, { error: 'Error interno del servidor.' });
+      }
+    }
+
     if (event.httpMethod === 'POST' && pathname === '/census') {
       const payload = event.body ? JSON.parse(event.body) : {};
       const data = normalizeInput(payload);

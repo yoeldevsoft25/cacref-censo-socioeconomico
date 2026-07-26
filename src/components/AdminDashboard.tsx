@@ -834,34 +834,28 @@ export default function AdminDashboard({ user }: { user?: { username: string; ro
 
                   {submissionFiles.length > 0 && (
                     <div className="mt-4">
-                      <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-600 mb-2">Archivos adjuntos del censado</p>
-                      <div className="space-y-1.5">
+                      <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-600 mb-2">
+                        Archivos adjuntos ({submissionFiles.length})
+                      </p>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                         {submissionFiles.map((f) => {
                           const typeLabels: Record<string, string> = {
-                            CEDULA: 'Cedula',
-                            MEDICAMENTO: 'Receta medica',
-                            CIRUGIA: 'Informe medico',
+                            CEDULA: 'Cédula',
+                            MEDICAMENTO: 'Receta médica',
+                            CIRUGIA: 'Informe médico',
                             FAMILIAR: 'Doc. familiar',
                             OTRO: 'Otro',
                           };
                           const sizeKb = (Number(f.size_bytes) / 1024).toFixed(1);
+                          const isImage = String(f.mime_type || '').startsWith('image/');
                           return (
-                            <a
-                              key={f.id}
-                              href={f.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-3 p-2.5 rounded-lg border border-slate-200 hover:border-red-300 hover:bg-red-50/30 transition-colors group"
-                            >
-                              <div className="w-8 h-8 rounded-lg bg-slate-100 group-hover:bg-red-100 flex items-center justify-center shrink-0">
-                                <FileText className="w-4 h-4 text-slate-500 group-hover:text-red-600" />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs font-semibold text-slate-900 truncate">{f.original_name}</p>
-                                <p className="text-[10px] text-slate-500">{typeLabels[f.file_type] || f.file_type} · {sizeKb} KB</p>
-                              </div>
-                              <Download className="w-3.5 h-3.5 text-slate-400 group-hover:text-red-600" />
-                            </a>
+                            <AttachmentCard
+                              key={String(f.id)}
+                              file={f}
+                              isImage={isImage}
+                              typeLabel={typeLabels[f.file_type] || f.file_type}
+                              sizeLabel={`${sizeKb} KB`}
+                            />
                           );
                         })}
                       </div>
@@ -902,6 +896,110 @@ export default function AdminDashboard({ user }: { user?: { username: string; ro
           </div>
         </div>
       )}
+
+      <AttachmentLightbox />
+    </div>
+  );
+}
+
+/**
+ * Card para un archivo adjunto. Si es imagen muestra thumbnail; si no, ícono + nombre.
+ * Al click abre un lightbox (si es imagen) o descarga/abre en pestaña nueva.
+ */
+function AttachmentCard({
+  file,
+  isImage,
+  typeLabel,
+  sizeLabel,
+}: {
+  file: any;
+  isImage: boolean;
+  typeLabel: string;
+  sizeLabel: string;
+  key?: string;
+}) {
+  const open = useAttachmentLightbox();
+  const filename: string = file.original_name || file.id || 'archivo';
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        if (isImage) {
+          open({ url: file.url, name: filename, mime: file.mime_type });
+        } else {
+          window.open(file.url, '_blank', 'noopener,noreferrer');
+        }
+      }}
+      className="group flex flex-col items-stretch text-left rounded-xl border border-slate-200 hover:border-red-300 hover:shadow-md transition-all overflow-hidden bg-white"
+    >
+      <div className="aspect-video w-full bg-slate-100 flex items-center justify-center overflow-hidden">
+        {isImage ? (
+          <img
+            src={file.url}
+            alt={filename}
+            loading="lazy"
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+          />
+        ) : (
+          <div className="flex flex-col items-center gap-1 text-slate-400">
+            <FileText className="w-8 h-8" />
+            <span className="text-[10px] uppercase tracking-wider">PDF/Doc</span>
+          </div>
+        )}
+      </div>
+      <div className="p-2">
+        <p className="text-[11px] font-semibold text-slate-900 truncate" title={filename}>{filename}</p>
+        <p className="text-[10px] text-slate-500">{typeLabel} · {sizeLabel}</p>
+      </div>
+    </button>
+  );
+}
+
+/**
+ * Lightbox simple para previsualizar imágenes adjuntas en pantalla completa.
+ * Implementado como un context simple para evitar acoplar el modal al componente principal.
+ */
+type LightboxState = { url: string; name: string; mime: string } | null;
+let _lightboxSetter: (s: LightboxState) => void = () => {};
+export function useAttachmentLightbox() {
+  return (state: LightboxState) => _lightboxSetter(state);
+}
+function AttachmentLightbox() {
+  const [state, setState] = useState<LightboxState>(null);
+  _lightboxSetter = setState;
+  if (!state) return null;
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-slate-900/85 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={() => setState(null)}
+    >
+      <div className="relative max-w-5xl w-full max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3 text-white">
+          <p className="text-sm font-semibold truncate pr-4">{state.name}</p>
+          <div className="flex items-center gap-2">
+            <a
+              href={state.url}
+              download={state.name}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-semibold"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Descargar
+            </a>
+            <button
+              onClick={() => setState(null)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-semibold"
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+        <div className="flex-1 bg-slate-950 rounded-xl overflow-hidden flex items-center justify-center">
+          <img src={state.url} alt={state.name} className="max-w-full max-h-[80vh] object-contain" />
+        </div>
+      </div>
     </div>
   );
 }
