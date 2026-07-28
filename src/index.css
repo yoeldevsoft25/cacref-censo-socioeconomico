@@ -102,3 +102,25 @@ select:focus {
 .float-subtle {
   animation: float 6s ease-in-out infinite;
 }
+
+/* Hero background crossfade carousel — 2 slides, 7s total, soft loop */
+@keyframes hero-slide-a {
+  0%, 100% { opacity: 0.55; }
+  45%, 55% { opacity: 0.75; }
+}
+@keyframes hero-slide-b {
+  0%, 45% { opacity: 0; }
+  55%, 100% { opacity: 0.55; }
+  /* b only fully visible during b's "on" half */
+}
+@keyframes hero-slide-b-on {
+  0%, 40% { opacity: 0; }
+  50% { opacity: 0.75; }
+  60%, 100% { opacity: 0; }
+}
+.hero-slide-a {
+  animation: hero-slide-a 14s ease-in-out infinite;
+}
+.hero-slide-b {
+  animation: hero-slide-b-on 14s ease-in-out infinite;
+}

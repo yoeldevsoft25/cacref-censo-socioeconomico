@@ -35,9 +35,21 @@ export default function AdminLogin({ onLogin }: AdminLoginProps) {
     };
 
     return (
-        <div className="min-h-[calc(100vh-80px)] flex items-center justify-center px-4">
+        <div className="min-h-[calc(100vh-80px)] flex items-center justify-center px-4 relative overflow-hidden">
+            {/* Imagen institucional generada con IA, fuertemente difuminada para uso decorativo */}
+            <div
+                className="absolute inset-0 bg-cover bg-center"
+                style={{
+                    backgroundImage: 'url(/bg/institucional-2.jpg)',
+                    filter: 'blur(32px) saturate(0.8) brightness(0.8)',
+                    transform: 'scale(1.2)',
+                }}
+                aria-hidden="true"
+            />
+            {/* Overlay blanco para legibilidad */}
+            <div className="absolute inset-0 bg-white/80 backdrop-blur-[2px]" />
             {/* Subtle background pattern */}
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,#fee2e2_0%,transparent_70%)] opacity-30 pointer-events-none" />
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,#fee2e2_0%,transparent_70%)] opacity-40 pointer-events-none" />
 
             <motion.div
                 initial={{ opacity: 0, y: 24, scale: 0.97 }}
@@ -158,6 +170,11 @@ export default function AdminLogin({ onLogin }: AdminLoginProps) {
                     Censo Socioeconomico y Salud CACREF - Acceso Restringido
                 </p>
             </motion.div>
+
+            {/* Crédito IA — imagen decorativa */}
+            <div className="absolute bottom-3 right-4 z-20 text-[10px] font-medium text-slate-500/80 bg-white/70 backdrop-blur-sm px-2 py-1 rounded-md border border-slate-200/60">
+                Imagen generada con IA · carácter ilustrativo
+            </div>
         </div>
     );
 }

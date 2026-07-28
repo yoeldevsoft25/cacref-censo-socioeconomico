@@ -41,9 +41,30 @@ export default function Hero() {
   return (
     <section className="relative overflow-hidden min-h-[88svh] flex items-center pt-20 lg:pt-24">
       {/* ── Background layers ── */}
-      <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-white to-red-50/40" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_70%_-20%,rgba(220,38,38,0.07),transparent_60%)]" />
-      <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-slate-50 to-transparent" />
+      {/* Carrusel institucional: dos imágenes IA en crossfade cada 7s, blur suave */}
+      <div
+        className="hero-slide-a absolute inset-0 bg-cover bg-center"
+        style={{
+          backgroundImage: 'url(/bg/institucional-1.jpg)',
+          filter: 'blur(2px) saturate(0.95) brightness(1.0)',
+          transform: 'scale(1.05)',
+        }}
+        aria-hidden="true"
+      />
+      <div
+        className="hero-slide-b absolute inset-0 bg-cover bg-center"
+        style={{
+          backgroundImage: 'url(/bg/institucional-2.jpg)',
+          filter: 'blur(2px) saturate(0.95) brightness(1.0)',
+          transform: 'scale(1.05)',
+          opacity: 0,
+        }}
+        aria-hidden="true"
+      />
+      {/* Overlay blanco/rojo para legibilidad */}
+      <div className="absolute inset-0 bg-gradient-to-br from-white/55 via-white/40 to-red-50/55" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_70%_-20%,rgba(220,38,38,0.10),transparent_60%)]" />
+      <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-white/80 to-transparent" />
 
       {/* Grid dots */}
       <div className="absolute inset-0 bg-[radial-gradient(circle,rgba(15,23,42,0.04)_1px,transparent_1px)] bg-[size:24px_24px] [mask-image:radial-gradient(ellipse_80%_70%_at_50%_40%,#000_20%,transparent_100%)] pointer-events-none" />
@@ -144,6 +165,11 @@ export default function Hero() {
             </motion.div>
           </motion.div>
         </div>
+      </div>
+
+      {/* Crédito IA — imagen decorativa */}
+      <div className="absolute bottom-3 right-4 z-20 text-[10px] font-medium text-slate-500/80 bg-white/60 backdrop-blur-sm px-2 py-1 rounded-md border border-slate-200/60">
+        Imágenes generadas con IA · carácter ilustrativo
       </div>
     </section>
   );

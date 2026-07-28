@@ -37,7 +37,7 @@ interface Props {
  * - Tooltip con conteo y desglose (prioridad alta, comité)
  * - Responsive (se adapta al ancho del contenedor)
  */
-export default function VenezuelaMap({ height = 520, center = [-66.5, 7.5], zoom = 3.4, showLegend = true }: Props) {
+export default function VenezuelaMap({ height = 420, center = [-66.5, 7.0], zoom = 2.6, showLegend = true }: Props) {
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -104,10 +104,11 @@ export default function VenezuelaMap({ height = 520, center = [-66.5, 7.5], zoom
 
         <ComposableMap
           projection="geoMercator"
-          projectionConfig={{ scale: 1700 }}
-          width={520}
+          projectionConfig={{ scale: 900 }}
+          width={800}
           height={height}
-          style={{ width: '100%', height: 'auto' }}
+          preserveAspectRatio="xMidYMid meet"
+          style={{ width: '100%', height: '100%', display: 'block' }}
           data-tip=""
         >
           <ZoomableGroup center={center} zoom={zoom} minZoom={zoom} maxZoom={8}>
