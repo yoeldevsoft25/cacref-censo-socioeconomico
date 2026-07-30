@@ -716,11 +716,13 @@ export const handler = async (event: any) => {
 
     if (event.httpMethod === 'GET' && pathname === '/version') {
       return json(200, {
-        version: 'v3-bcrypt-multi-role-lopdp',
-        built_at: '2026-07-25',
-        features: ['bcrypt', '4-roles', 'arcos', 'audit-log', 'pdf', 'bulk-import', 'transparencia', 'privacidad', 'rate-limit', 'lopolis-endpoints'],
+        version: 'v4-cacref-salud-demo',
+        built_at: '2026-07-30',
+        features: ['bcrypt', '4-roles', 'arcos', 'audit-log', 'pdf', 'bulk-import', 'transparencia', 'privacidad', 'rate-limit', 'email-confirmation', 'aporte-base-2'],
         has_user_object_in_me: true,
         has_admin_pass_hash_support: true,
+        has_resend_api_key: Boolean(process.env.RESEND_API_KEY),
+        sender_email: process.env.SENDER_EMAIL || 'noreply@futpvcacref.com',
       });
     }
 

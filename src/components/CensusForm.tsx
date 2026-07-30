@@ -385,6 +385,7 @@ export default function CensusForm() {
   const [error, setError] = useState('');
   const [canSubmitFinalStep, setCanSubmitFinalStep] = useState(false);
   const [attachedCount, setAttachedCount] = useState(0);
+  const [emailStatus, setEmailStatus] = useState<{ sent?: boolean; mocked?: boolean; reason?: string } | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const [formData, setFormData] = useState({
@@ -492,6 +493,7 @@ export default function CensusForm() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Error al enviar');
       setAttachedCount(attachments.length);
+      setEmailStatus(data.email || null);
       setSubmitSuccess(true);
     } catch (err: any) { setError(err.message); }
     finally { setIsSubmitting(false); }
@@ -520,6 +522,19 @@ export default function CensusForm() {
               ? `Sus datos y ${attachedCount} archivo${attachedCount === 1 ? '' : 's'} adjunto${attachedCount === 1 ? '' : 's'} han sido guardados. Serán utilizados exclusivamente para priorización institucional interna de CACREF.`
               : 'Sus datos han sido guardados. Serán utilizados exclusivamente para priorización institucional interna de CACREF.'}
           </motion.p>
+          {emailStatus && (
+            <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className={`mt-6 rounded-xl border px-4 py-3 text-xs leading-relaxed ${
+              emailStatus.sent
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                : 'bg-amber-50 border-amber-200 text-amber-800'
+            }`}>
+              {emailStatus.sent
+                ? 'Confirmación enviada al correo registrado. Revise también la bandeja de spam o promociones.'
+                : emailStatus.mocked
+                  ? 'Registro guardado. El correo no se envió porque Resend no está configurado en este entorno.'
+                  : `Registro guardado. No se pudo enviar la confirmación por correo${emailStatus.reason ? `: ${emailStatus.reason}` : '.'}`}
+            </motion.div>
+          )}
           <motion.button initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }} onClick={() => window.location.reload()} className="mt-10 inline-flex items-center px-7 py-3 text-sm font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 rounded-full shadow-sm transition-all">
             Volver al Inicio
           </motion.button>
