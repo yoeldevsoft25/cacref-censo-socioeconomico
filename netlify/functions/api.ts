@@ -1,7 +1,7 @@
 import { createClient, type Client } from '@libsql/client/http';
 import { createHmac, timingSafeEqual, randomUUID } from 'crypto';
 import bcrypt from 'bcryptjs';
-import { sendCensusConfirmationEmail } from '../../src/lib/email';
+import { sendCensusConfirmationEmail, sendStatusEmail } from '../../src/lib/email';
 
 type RiskLevel = 'BAJO' | 'MEDIO' | 'ALTO';
 type Recommendation = 'APROBADO_PRIORIDAD_ALTA' | 'APROBADO_CONDICIONAL' | 'REQUIERE_COMITE' | 'NO_ELEGIBLE';
@@ -718,7 +718,7 @@ export const handler = async (event: any) => {
       return json(200, {
         version: 'v4-cacref-salud-demo',
         built_at: '2026-07-30',
-        features: ['bcrypt', '4-roles', 'arcos', 'audit-log', 'pdf', 'bulk-import', 'transparencia', 'privacidad', 'rate-limit', 'email-confirmation', 'aporte-base-2'],
+        features: ['bcrypt', '4-roles', 'arcos', 'audit-log', 'pdf', 'bulk-import', 'transparencia', 'privacidad', 'rate-limit', 'email-confirmation', 'status-email', 'aporte-base-2'],
         has_user_object_in_me: true,
         has_admin_pass_hash_support: true,
         has_resend_api_key: Boolean(process.env.RESEND_API_KEY),
@@ -1205,7 +1205,7 @@ export const handler = async (event: any) => {
       const id = Number(pathname.split('/')[3]);
       if (!id) return json(400, { error: 'Id invalido' });
       const payload = event.body ? JSON.parse(event.body) : {};
-      const { status, note } = payload || {};
+      const { status, note, decision, assigned_to, send_email } = payload || {};
       const validStatuses = ['REGISTRADO', 'EN_REVISION', 'COMITE', 'RESUELTO', 'DESCARTADO'];
       if (!validStatuses.includes(status)) return json(400, { error: 'Estado invalido' });
       if (currentUser!.role === 'capturista' && status !== 'EN_REVISION') {
@@ -1213,21 +1213,57 @@ export const handler = async (event: any) => {
       }
       const noteText = toText(note).slice(0, 500) || null;
 
-      const current = await db.execute({ sql: 'SELECT workflow_status FROM census_submissions WHERE id = ?', args: [id] });
+      const current = await db.execute({ sql: 'SELECT workflow_status, correo, nombre_apellido FROM census_submissions WHERE id = ?', args: [id] });
       if (!current.rows[0]) return json(404, { error: 'Registro no encontrado' });
       const now = new Date().toISOString();
-      const fromStatus = (current.rows[0] as any).workflow_status;
+      const currentRow = current.rows[0] as any;
+      const fromStatus = currentRow.workflow_status;
+
+      let updateFields = '';
+      const updateArgs: any[] = [status, noteText, now];
+
+      if (assigned_to !== undefined) {
+        updateFields += ', assigned_to = ?';
+        updateArgs.push(toText(assigned_to).slice(0, 120) || null);
+      }
+
+      if (status === 'RESUELTO' && decision) {
+        const tiposValidos = ['MEDICAMENTO', 'CIRUGIA', 'APOYO_FAMILIAR', 'OTRO'];
+        const tipo = tiposValidos.includes(decision.tipo) ? decision.tipo : 'OTRO';
+        const monto = Math.max(0, toNumber(decision.monto_aprobado));
+        const obs = toText(decision.observaciones).slice(0, 1000) || null;
+        updateFields += ', decision_tipo = ?, decision_monto = ?, decision_observaciones = ?, decision_at = ?';
+        updateArgs.push(tipo, monto, obs, now);
+      }
+
+      updateArgs.push(id);
 
       await db.execute({
-        sql: 'UPDATE census_submissions SET workflow_status = ?, workflow_notes = ?, workflow_updated_at = ? WHERE id = ?',
-        args: [status, noteText, now, id],
+        sql: `UPDATE census_submissions SET workflow_status = ?, workflow_notes = ?, workflow_updated_at = ?${updateFields} WHERE id = ?`,
+        args: updateArgs,
       });
       await db.execute({
         sql: 'INSERT INTO workflow_history (submission_id, from_status, to_status, note, changed_at) VALUES (?, ?, ?, ?, ?)',
         args: [id, fromStatus, status, noteText, now],
       });
-      await audit(event, session!.username, currentUser!.role, 'status_change', 'submission', id, { from: fromStatus, to: status });
-      return json(200, { success: true, status, changed_at: now });
+
+      let emailResult: { sent: boolean; mocked: boolean; reason?: string; messageId?: string } = { sent: false, mocked: false };
+      if (send_email && currentRow.correo) {
+        emailResult = await sendStatusEmail({
+          to: String(currentRow.correo),
+          nombre: String(currentRow.nombre_apellido || 'Postulante'),
+          status,
+          note: noteText,
+          decision: status === 'RESUELTO' && decision ? {
+            tipo: String(decision.tipo || 'OTRO'),
+            monto_aprobado: toNumber(decision.monto_aprobado),
+            observaciones: toText(decision.observaciones),
+          } : null,
+        });
+      }
+
+      await audit(event, session!.username, currentUser!.role, 'status_change', 'submission', id, { from: fromStatus, to: status, assigned_to, sent_email: emailResult.sent, email_reason: emailResult.reason });
+      return json(200, { success: true, status, changed_at: now, email: emailResult });
     }
 
     if (event.httpMethod === 'GET' && /^\/admin\/submissions\/\d+\/history$/.test(pathname)) {

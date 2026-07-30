@@ -23,6 +23,13 @@ export default function WorkflowStatusControl({ submissionId, status, currentAss
   const [saving, setSaving] = useState(false);
   const [decisionModal, setDecisionModal] = useState(false);
 
+  const handleEmailResult = (data: any) => {
+    if (!sendEmail || !data?.email) return;
+    if (!data.email.sent) {
+      alert(data.email.reason || 'El estado cambio, pero el correo no fue enviado.');
+    }
+  };
+
   const handleSelect = (newStatus: WorkflowStatus) => {
     if (newStatus === status) {
       setOpen(false);
@@ -49,15 +56,17 @@ export default function WorkflowStatusControl({ submissionId, status, currentAss
           send_email: sendEmail,
         }),
       });
-      if (!res.ok) throw new Error('Error al actualizar');
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || 'Error al actualizar');
       setOpen(false);
       setDecisionModal(false);
       setPending(null);
       setNote('');
+      handleEmailResult(data);
       onChange();
     } catch (err) {
       console.error(err);
-      alert('Error al cambiar el estado');
+      alert(err instanceof Error ? err.message : 'Error al cambiar el estado');
     } finally {
       setSaving(false);
     }
@@ -77,14 +86,16 @@ export default function WorkflowStatusControl({ submissionId, status, currentAss
           send_email: sendEmail,
         }),
       });
-      if (!res.ok) throw new Error('Error al actualizar');
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || 'Error al actualizar');
       setOpen(false);
       setPending(null);
       setNote('');
+      handleEmailResult(data);
       onChange();
     } catch (err) {
       console.error(err);
-      alert('Error al cambiar el estado');
+      alert(err instanceof Error ? err.message : 'Error al cambiar el estado');
     } finally {
       setSaving(false);
     }
