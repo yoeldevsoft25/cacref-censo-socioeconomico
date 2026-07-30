@@ -21,7 +21,7 @@
     Referrer-Policy = "no-referrer"
     Permissions-Policy = "camera=(), microphone=(), geolocation=()"
     Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
-    Content-Security-Policy = "default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self'; connect-src 'self' https://*.turso.io wss://*.turso.io https://cacref-yoeldevsoft.aws-us-west-2.turso.io; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    Content-Security-Policy = "default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; script-src 'self'; connect-src 'self' https://*.turso.io wss://*.turso.io https://cacref-yoeldevsoft.aws-us-west-2.turso.io; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
     Cross-Origin-Opener-Policy = "same-origin"
 
 [[headers]]

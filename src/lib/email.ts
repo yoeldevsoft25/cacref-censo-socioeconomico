@@ -42,6 +42,18 @@ function formatMoney(value: number): string {
   return `$${Number(value || 0).toFixed(2)}`;
 }
 
+function isReservedRecipient(to: string): boolean {
+  const domain = String(to || '').split('@').pop()?.toLowerCase();
+  return Boolean(domain && (
+    domain === 'example.com' ||
+    domain === 'example.org' ||
+    domain === 'example.net' ||
+    domain === 'localhost' ||
+    domain.endsWith('.test') ||
+    domain.endsWith('.invalid')
+  ));
+}
+
 function baseEmailLayout(opts: {
   preheader: string;
   title: string;
@@ -280,6 +292,11 @@ async function sendEmail(opts: {
   html: string;
   text: string;
 }): Promise<{ sent: boolean; mocked: boolean; reason?: string; messageId?: string }> {
+  if (isReservedRecipient(opts.to)) {
+    console.log(`[EMAIL SKIP] To: ${opts.to} | Subject: ${opts.subject} | Reserved recipient domain`);
+    return { sent: false, mocked: true, reason: 'Dominio de correo reservado para pruebas. Use un correo real.' };
+  }
+
   if (!resend) {
     console.log(`[EMAIL MOCK] To: ${opts.to} | Subject: ${opts.subject}`);
     return { sent: false, mocked: true, reason: 'RESEND_API_KEY not configured' };

@@ -637,7 +637,7 @@ async function startServer() {
     if (isProd) {
       res.setHeader(
         'Content-Security-Policy',
-        "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' https://*.googletagmanager.com; connect-src 'self' https://*.turso.io wss://*.turso.io; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        "default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; script-src 'self' https://*.googletagmanager.com; connect-src 'self' https://*.turso.io wss://*.turso.io; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
       );
       res.setHeader('Cache-Control', 'no-store');
     }
