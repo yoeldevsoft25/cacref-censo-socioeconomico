@@ -544,6 +544,12 @@ async function initDatabase() {
   await execSql('CREATE INDEX IF NOT EXISTS idx_notif_user_unread ON notifications(user_target, read_at, created_at)');
   await execSql('CREATE INDEX IF NOT EXISTS idx_notif_created ON notifications(created_at)');
   await execSql('CREATE INDEX IF NOT EXISTS idx_comments_submission ON case_comments(submission_id, created_at)');
+
+  await execSql(`
+    UPDATE census_submissions
+    SET capacidad_cuota = ROUND(COALESCE(ingreso_individual, 0) * ${BASE_CONTRIBUTION_RATE}, 2)
+    WHERE ABS(COALESCE(capacidad_cuota, 0) - ROUND(COALESCE(ingreso_individual, 0) * ${BASE_CONTRIBUTION_RATE}, 2)) > 0.01
+  `);
 }
 
 async function backfillEvaluations() {

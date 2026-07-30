@@ -96,7 +96,7 @@ export function generateSeedSubmissions(count: number): SeedRecord[] {
     const hasSurg = Math.random() < 0.18;
     const hasFam = Math.random() < 0.22;
     const calidad = Math.max(1, Math.min(10, Math.round(4 + (Math.random() - 0.6) * 6)));
-    const quota = Math.round(individual * (0.18 + Math.random() * 0.2) * 100) / 100;
+    const quota = Math.round(individual * 0.02 * 100) / 100;
 
     records.push({
       nombre_apellido: `${rand(NOMBRES)} ${rand(APELLIDOS)} ${rand(APELLIDOS)}`,
@@ -138,7 +138,7 @@ export function generateSeedSubmissions(count: number): SeedRecord[] {
     ingreso_individual: 850,
     ingreso_familiar: 1200,
     afiliado_cacref: true,
-    capacidad_cuota: 220,
+    capacidad_cuota: 17,
     requiere_medicamento_cronico: true,
     medicamento_detalle: 'Losartan 50mg diario para hipertension + Atorvastatina 40mg',
     requiere_cirugia: true,

@@ -518,6 +518,12 @@ async function initSchema() {
   await db.execute('CREATE INDEX IF NOT EXISTS idx_census_workflow_status ON census_submissions(workflow_status)');
   await db.execute('CREATE INDEX IF NOT EXISTS idx_notif_user ON notifications(user_target, created_at)');
 
+  await db.execute(`
+    UPDATE census_submissions
+    SET capacidad_cuota = ROUND(COALESCE(ingreso_individual, 0) * ${BASE_CONTRIBUTION_RATE}, 2)
+    WHERE ABS(COALESCE(capacidad_cuota, 0) - ROUND(COALESCE(ingreso_individual, 0) * ${BASE_CONTRIBUTION_RATE}, 2)) > 0.01
+  `);
+
   initialized = true;
 }
 

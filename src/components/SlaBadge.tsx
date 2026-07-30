@@ -30,11 +30,12 @@ export default function SlaBadge({ days, status, sla }: Props) {
   }[computed];
 
   const Icon = computed === 'OVERDUE' ? AlertTriangle : Clock;
+  const label = days <= 0 ? 'Hoy' : `${days} dia${days === 1 ? '' : 's'}`;
 
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${styles}`}>
       <Icon className="w-3 h-3" />
-      {days}d {computed === 'OVERDUE' && '⚠'}
+      {label}
     </span>
   );
 }
