@@ -69,7 +69,7 @@ const PROCEDIMIENTOS = [
 const FAMILIARES = [
   'Conyuge con tratamiento de quimioterapia',
   'Hijo menor con condicion neurologica',
-  'Madre de 78 anos con diabetes y movilidad reducida',
+  'Madre de 78 años con diabetes y movilidad reducida',
   'Padre con Alzheimer en etapa inicial',
   'Hija con condicion cardiaca congenita',
   'Conyuge postoperatorio de columna',

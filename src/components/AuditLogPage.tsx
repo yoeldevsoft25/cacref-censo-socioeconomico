@@ -135,7 +135,7 @@ export default function AuditLogPage() {
             <tbody className="bg-white divide-y divide-slate-200">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-12 text-center text-slate-500">Cargando auditoria...</td>
+                  <td colSpan={5} className="px-4 py-12 text-center text-slate-500">Cargando auditoría...</td>
                 </tr>
               ) : entries.length === 0 ? (
                 <tr>

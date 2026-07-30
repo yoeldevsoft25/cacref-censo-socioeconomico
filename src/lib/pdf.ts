@@ -122,7 +122,7 @@ export function generateCasePdf(submission: any, history: any[], comments: any[]
   y += 14;
   doc.setFontSize(10);
   doc.setTextColor(71, 85, 105);
-  doc.text(`CI ${submission.cedula}  |  ${submission.gerencia || ''}  |  ${submission.cargo || ''}  |  ${submission.anos_servicio || 0} anos de servicio`, margin, y);
+  doc.text(`CI ${submission.cedula}  |  ${submission.gerencia || ''}  |  ${submission.cargo || ''}  |  ${submission.anos_servicio || 0} años de servicio`, margin, y);
   y += 18;
 
   const statusLabel = (() => {

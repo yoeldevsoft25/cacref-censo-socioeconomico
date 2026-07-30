@@ -205,7 +205,7 @@ export default function LegalPage() {
             <SecurityItem area="Datos en reposo" measure="Archivos (cedulas, recetas) almacenados como BLOBs en la misma base de datos (Turso). Backups automaticos incluidos en el plan." />
             <SecurityItem area="Rate limiting" measure="Limite de 5 intentos de login por IP en 15 min, 7 fallos seguidos bloquean 20 min." />
             <SecurityItem area="Auditoria" measure="Tabla audit_log inmutable registra accion, actor, rol, target, IP y user agent para cada operacion sensible." />
-            <SecurityItem area="Anonimizacion" measure="Cancelacion LOPDP (Art. 25) sustituye campos personales por 'ELIMINADO' manteniendo solo datos estadisticos." />
+            <SecurityItem area="Anonimización" measure="Cancelación LOPDP (Art. 25) sustituye campos personales por 'ELIMINADO' manteniendo solo datos estadísticos." />
             <SecurityItem area="Geolocalizacion" measure="Solo se almacena estado y municipio. No se guarda direccion exacta, latitud, longitud, ni IP precisa." />
           </div>
         </Section>

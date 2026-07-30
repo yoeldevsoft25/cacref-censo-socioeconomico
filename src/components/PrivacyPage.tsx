@@ -42,7 +42,7 @@ export default function PrivacyPage() {
               2. Finalidad del tratamiento
             </h2>
             <p className="text-sm text-slate-700 leading-relaxed">
-              Los datos personales y de salud recolectados a traves del censo socioeconomico seran utilizados exclusivamente para:
+              Los datos personales y de salud recolectados a través del censo socioeconómico serán utilizados exclusivamente para:
             </p>
             <ul className="text-sm text-slate-700 list-disc pl-5 mt-2 space-y-1">
               <li>Diagnostico socioeconomico de los trabajadores, afiliados y familiares de CACREF</li>
@@ -77,7 +77,7 @@ export default function PrivacyPage() {
             </h2>
             <ul className="text-sm text-slate-700 list-disc pl-5 space-y-1">
               <li><strong>Identificacion:</strong> nombre y apellido, cedula, telefono, correo electronico</li>
-              <li><strong>Vinculacion institucional:</strong> gerencia, unidad operativa, cargo, anos de servicio</li>
+              <li><strong>Vinculación institucional:</strong> gerencia, unidad operativa, cargo, años de servicio</li>
               <li><strong>Situacion socioeconomica:</strong> ingreso individual y familiar, aporte base calculado al 2%</li>
               <li><strong>Salud (sensibles):</strong> requerimiento de medicamentos, cirugias, asistencia familiar, calidad de vida autoevaluada</li>
               <li><strong>Documentos adjuntos:</strong> copia de cedula, recetas medicas, informes (cuando aplica)</li>
@@ -107,10 +107,10 @@ export default function PrivacyPage() {
               6. Plazo de conservacion
             </h2>
             <p className="text-sm text-slate-700 leading-relaxed">
-              Los datos se conservaran mientras dure la relacion del titular con CACREF y hasta <strong>5 anos adicionales</strong> despues de su desvinculacion, para efectos de trazabilidad administrativa. Pasado este plazo, los datos seran anonimizados para fines estadisticos.
+              Los datos se conservarán mientras dure la relación del titular con CACREF y hasta <strong>5 años adicionales</strong> después de su desvinculación, para efectos de trazabilidad administrativa. Pasado este plazo, los datos serán anonimizados para fines estadísticos.
             </p>
             <p className="text-sm text-slate-700 leading-relaxed mt-2">
-              Los registros de auditoria se conservan por <strong>10 anos</strong> conforme a las buenas practicas de conservacion documental.
+              Los registros de auditoría se conservan por <strong>10 años</strong> conforme a las buenas prácticas de conservación documental.
             </p>
           </section>
 

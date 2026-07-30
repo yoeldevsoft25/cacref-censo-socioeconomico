@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { ArrowLeft, Brain, Shield, TrendingUp, Users, FileText } from 'lucide-react';
 
 const SCORING = [
-  { name: 'Antiguedad', weight: 22, desc: 'Premia anos de servicio en la industria. Maximo 22 puntos a los 15 anos.' },
+  { name: 'Antigüedad', weight: 22, desc: 'Premia años de servicio en la industria. Máximo 22 puntos a los 15 años.' },
   { name: 'Capacidad de pago', weight: 28, desc: 'Ingreso individual declarado como referencia para programas posteriores. Maximo 28 puntos.' },
   { name: 'Aporte base', weight: 24, desc: 'Aporte institucional de 2% sobre ingreso individual. No representa aprobacion de prestamos.' },
   { name: 'Necesidad de salud', weight: 45, desc: 'Cirugia (25), medicamento (15), familiar (10), calidad de vida (ajuste).' },

@@ -298,7 +298,7 @@ export default function AdminDashboard({ user }: { user?: { username: string; ro
       ['gerencia', 'Gerencia'],
       ['unidad_operativa', 'Unidad Operativa'],
       ['cargo', 'Cargo'],
-      ['anos_servicio', 'Anos Servicio'],
+      ['anos_servicio', 'Años Servicio'],
       ['ingreso_individual', 'Ingreso Individual'],
       ['ingreso_familiar', 'Ingreso Familiar'],
       ['capacidad_cuota', 'Aporte Base 2%'],
@@ -720,7 +720,7 @@ export default function AdminDashboard({ user }: { user?: { username: string; ro
                   <DataItem label="Gerencia" value={selectedSubmission.gerencia} />
                   <DataItem label="Unidad Operativa" value={selectedSubmission.unidad_operativa || 'N/D'} />
                   <DataItem label="Cargo" value={selectedSubmission.cargo} />
-                  <DataItem label="Anos de Servicio" value={selectedSubmission.anos_servicio} />
+                  <DataItem label="Años de Servicio" value={selectedSubmission.anos_servicio} />
                 </div>
               </section>
 
