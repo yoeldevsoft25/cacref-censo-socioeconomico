@@ -59,9 +59,9 @@ export default function BulkImportModal({ open, onClose, onComplete }: Props) {
   };
 
   const downloadTemplate = () => {
-    const csv = `nombre_apellido,cedula,telefono,correo,gerencia,unidad_operativa,anos_servicio,cargo,ingreso_individual,ingreso_familiar,afiliado_cacref,capacidad_cuota,requiere_medicamento_cronico,medicamento_detalle,requiere_cirugia,cirugia_detalle,familiar_requiere_asistencia,calidad_vida_escala,region_sede,vicepresidencia,direccion_ejecutiva
-Juan Perez,12345678,04141111111,juan@example.com,Refinacion,Unidad Norte,15,Operador,750,1100,1,200,1,Losartan 50mg,0,,0,6,Caracas,VP Manufactura,Dir Ejecutiva
-Maria Lopez,87654321,04142222222,maria@example.com,Produccion,Unidad Sur,8,Tecnico,520,780,1,150,0,,0,,1,5,Valencia,VP Produccion,Dir Ejecutiva`;
+    const csv = `nombre_apellido,cedula,telefono,correo,gerencia,unidad_operativa,anos_servicio,cargo,ingreso_individual,ingreso_familiar,afiliado_cacref,requiere_medicamento_cronico,medicamento_detalle,requiere_cirugia,cirugia_detalle,familiar_requiere_asistencia,calidad_vida_escala,region_sede,vicepresidencia,direccion_ejecutiva
+Juan Perez,12345678,04141111111,juan@example.com,Refinacion,Unidad Norte,15,Operador,750,1100,1,1,Losartan 50mg,0,,0,6,Caracas,VP Manufactura,Dir Ejecutiva
+Maria Lopez,87654321,04142222222,maria@example.com,Produccion,Unidad Sur,8,Tecnico,520,780,1,0,,0,,1,5,Valencia,VP Produccion,Dir Ejecutiva`;
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -113,7 +113,7 @@ Maria Lopez,87654321,04142222222,maria@example.com,Produccion,Unidad Sur,8,Tecni
               {!result ? (
                 <>
                   <div className="mb-4 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs">
-                    Columnas requeridas: nombre_apellido, cedula, telefono, correo, gerencia, anos_servicio, cargo, ingreso_individual, ingreso_familiar, capacidad_cuota, calidad_vida_escala. Opcionales: resto.
+                    Columnas requeridas: nombre_apellido, cedula, telefono, correo, gerencia, anos_servicio, cargo, ingreso_individual, ingreso_familiar, calidad_vida_escala. El aporte base se calcula automáticamente como 2% del ingreso individual.
                   </div>
 
                   <label className="block">

@@ -243,9 +243,9 @@ Metodologia de scoring y arquitectura abiertas para auditoria.
 
 ## Contacto
 
-- **Tecnico:** dev@cacref.example.com
-- **Seguridad:** seguridad@cacref.example.com
-- **Proteccion de datos:** protecciondedatos@cacref.example.com
+- **Tecnico:** dev@futpvcacref.com
+- **Seguridad:** seguridad@futpvcacref.com
+- **Proteccion de datos:** protecciondedatos@futpvcacref.com
 
 ---
 

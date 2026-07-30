@@ -55,7 +55,7 @@ Este documento resume el cumplimiento del sistema con la legislacion venezolana 
 - **Acceso:** `/consulta` permite al titular ver el estado de su caso
 - **Portabilidad:** Boton "Descargar mis datos" genera JSON con todos los datos
 - **Cancelacion:** Boton "Solicitar eliminacion" con confirmacion explicita (token "ELIMINAR")
-- **Oposicion:** Puede ejercerlo contactando `protecciondedatos@cacref.example.com`
+- **Oposicion:** Puede ejercerlo contactando `protecciondedatos@futpvcacref.com`
 - **Plazo de respuesta:** 15 dias habiles (Art. 31)
 - Ver `src/components/ConsultationPage.tsx`
 - Ver endpoints `/api/census/export/:cedula` y `/api/census/delete/:cedula`
@@ -64,7 +64,7 @@ Este documento resume el cumplimiento del sistema con la legislacion venezolana 
 **Requisito:** Procedimiento claro, plazos definidos.
 **Implementacion:**
 - Botones explicitos en `/consulta` para los derechos mas comunes
-- Canal alternativo: correo electronico a `protecciondedatos@cacref.example.com`
+- Canal alternativo: correo electronico a `protecciondedatos@futpvcacref.com`
 - Plazo documentado: 15 dias habiles
 
 ### Art. 33-34 — Medidas de seguridad y notificacion de incidentes
@@ -80,7 +80,7 @@ Este documento resume el cumplimiento del sistema con la legislacion venezolana 
 **Implementacion:**
 - Identificado: CACREF (RIF J-00214555-3)
 - Responsable de proteccion de datos: Oficina de Cumplimiento CACREF
-- Contacto: `protecciondedatos@cacref.example.com`
+- Contacto: `protecciondedatos@futpvcacref.com`
 - Ver seccion 1 de `/privacidad`
 
 ### Art. 41-44 — Transferencias internacionales
@@ -152,7 +152,7 @@ Antes de despliegue en produccion real, se recomienda:
 ## Contacto
 
 Para temas de cumplimiento legal:
-- **Correo:** `protecciondedatos@cacref.example.com`
+- **Correo:** `protecciondedatos@futpvcacref.com`
 - **Autoridad de control:** Superintendencia de Proteccion de Datos Personales
 - **Domicilio legal:** Edificio FUTPV, Los Caobos, Caracas, Distrito Capital
 

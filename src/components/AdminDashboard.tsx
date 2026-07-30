@@ -301,7 +301,7 @@ export default function AdminDashboard({ user }: { user?: { username: string; ro
       ['anos_servicio', 'Anos Servicio'],
       ['ingreso_individual', 'Ingreso Individual'],
       ['ingreso_familiar', 'Ingreso Familiar'],
-      ['capacidad_cuota', 'Capacidad Aporte'],
+      ['capacidad_cuota', 'Aporte Base 2%'],
       ['afiliado_cacref', 'Afiliado CACREF'],
       ['requiere_medicamento_cronico', 'Medicamento Cronico'],
       ['medicamento_detalle', 'Detalle Medicamento'],
@@ -608,7 +608,7 @@ export default function AdminDashboard({ user }: { user?: { username: string; ro
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-slate-900">Ingreso: {formatMoney(sub.ingreso_individual)}</div>
-                        <div className="text-sm text-slate-500">Aporte: {formatMoney(sub.capacidad_cuota)}</div>
+                        <div className="text-sm text-slate-500">Aporte base 2%: {formatMoney(sub.capacidad_cuota)}</div>
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex flex-wrap gap-1.5">
@@ -743,7 +743,7 @@ export default function AdminDashboard({ user }: { user?: { username: string; ro
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   <DataItem label="Ingreso Individual" value={formatMoney(selectedSubmission.ingreso_individual)} />
                   <DataItem label="Ingreso Familiar" value={formatMoney(selectedSubmission.ingreso_familiar)} />
-                  <DataItem label="Aporte Mensual" value={formatMoney(selectedSubmission.capacidad_cuota)} />
+                  <DataItem label="Aporte base 2%" value={formatMoney(selectedSubmission.capacidad_cuota)} />
                   <DataItem
                     label="Ratio Aporte/Ingreso"
                     value={

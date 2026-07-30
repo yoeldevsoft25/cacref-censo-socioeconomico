@@ -155,7 +155,7 @@ export function generateCasePdf(submission: any, history: any[], comments: any[]
       ['Afiliado CACREF', submission.afiliado_cacref ? 'Si' : 'No'],
       ['Ingreso individual', `$${Number(submission.ingreso_individual || 0).toFixed(2)}`],
       ['Ingreso familiar', `$${Number(submission.ingreso_familiar || 0).toFixed(2)}`],
-      ['Aporte mensual', `$${Number(submission.capacidad_cuota || 0).toFixed(2)}`],
+      ['Aporte base 2%', `$${Number(submission.capacidad_cuota || 0).toFixed(2)}`],
       ['Requiere medicamento', submission.requiere_medicamento_cronico ? `Si: ${submission.medicamento_detalle || ''}` : 'No'],
       ['Requiere cirugia', submission.requiere_cirugia ? `Si: ${submission.cirugia_detalle || ''}` : 'No'],
       ['Familiar con asistencia', submission.familiar_requiere_asistencia ? 'Si' : 'No'],

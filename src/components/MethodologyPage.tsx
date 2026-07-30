@@ -3,8 +3,8 @@ import { ArrowLeft, Brain, Shield, TrendingUp, Users, FileText } from 'lucide-re
 
 const SCORING = [
   { name: 'Antiguedad', weight: 22, desc: 'Premia anos de servicio en la industria. Maximo 22 puntos a los 15 anos.' },
-  { name: 'Capacidad de pago', weight: 28, desc: 'Cuota mensual declarada vs capacidad teorica. Maximo 28 puntos.' },
-  { name: 'Asequibilidad', weight: 24, desc: 'Ratio cuota/ingreso. Optimo entre 18% y 35%.' },
+  { name: 'Capacidad de pago', weight: 28, desc: 'Ingreso individual declarado como referencia para programas posteriores. Maximo 28 puntos.' },
+  { name: 'Aporte base', weight: 24, desc: 'Aporte institucional de 2% sobre ingreso individual. No representa aprobacion de prestamos.' },
   { name: 'Necesidad de salud', weight: 45, desc: 'Cirugia (25), medicamento (15), familiar (10), calidad de vida (ajuste).' },
   { name: 'Plus cooperativo', weight: 10, desc: 'Afiliado CACREF (6) + ratio de soporte familiar (4).' },
 ];

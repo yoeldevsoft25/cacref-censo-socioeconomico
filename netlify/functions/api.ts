@@ -1,9 +1,11 @@
 import { createClient, type Client } from '@libsql/client/http';
 import { createHmac, timingSafeEqual, randomUUID } from 'crypto';
 import bcrypt from 'bcryptjs';
+import { sendCensusConfirmationEmail } from '../../src/lib/email';
 
 type RiskLevel = 'BAJO' | 'MEDIO' | 'ALTO';
 type Recommendation = 'APROBADO_PRIORIDAD_ALTA' | 'APROBADO_CONDICIONAL' | 'REQUIERE_COMITE' | 'NO_ELEGIBLE';
+const BASE_CONTRIBUTION_RATE = 0.02;
 
 interface CensusInput {
   nombre_apellido: string;
@@ -31,17 +33,15 @@ interface CensusInput {
 
 const rawTursoUrl = process.env.TURSO_DATABASE_URL;
 const tursoToken = process.env.TURSO_AUTH_TOKEN;
-// Admin user table: each role has its own hash (or shares a plain pass fallback)
 type AdminRole = 'capturista' | 'vocal' | 'presidente' | 'director';
-interface AdminEntry { passwordHash?: string; role: AdminRole; name: string; plainPass?: string }
+interface AdminEntry { passwordHash?: string; role: AdminRole; name: string }
 const ADMIN_USERS: Record<string, AdminEntry> = {
-  admin: { passwordHash: process.env.ADMIN_PASS_HASH, role: 'director', name: 'Director General', plainPass: process.env.ADMIN_PASS },
-  presidente: { passwordHash: process.env.PRES_PASS_HASH, role: 'presidente', name: 'Presidente del Comite', plainPass: process.env.ADMIN_PASS },
-  vocal: { passwordHash: process.env.VOCAL_PASS_HASH, role: 'vocal', name: 'Vocal del Comite', plainPass: process.env.ADMIN_PASS },
-  capturista: { passwordHash: process.env.CAPT_PASS_HASH, role: 'capturista', name: 'Capturista', plainPass: process.env.ADMIN_PASS },
+  admin: { passwordHash: process.env.ADMIN_PASS_HASH, role: 'director', name: 'Director General' },
+  presidente: { passwordHash: process.env.PRES_PASS_HASH, role: 'presidente', name: 'Presidente del Comite' },
+  vocal: { passwordHash: process.env.VOCAL_PASS_HASH, role: 'vocal', name: 'Vocal del Comite' },
+  capturista: { passwordHash: process.env.CAPT_PASS_HASH, role: 'capturista', name: 'Capturista' },
 };
-const ADMIN_PLAIN_PASS = process.env.ADMIN_PASS || 'censo2025';
-const ADMIN_SESSION_SECRET = process.env.ADMIN_SESSION_SECRET || 'change_this_secret_in_production';
+const ADMIN_SESSION_SECRET = process.env.ADMIN_SESSION_SECRET;
 const ADMIN_SESSION_TTL_SECONDS = 60 * 60 * 8;
 const ADMIN_COOKIE_NAME = 'admin_session';
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
@@ -49,22 +49,49 @@ const LOGIN_MAX_ATTEMPTS = 7;
 const LOGIN_BLOCK_MS = 20 * 60 * 1000;
 const EDGE_WINDOW_MS = 60 * 1000;
 const EDGE_MAX_REQUESTS = 160;
+
+const ROLE_HIERARCHY: Record<AdminRole, number> = {
+  capturista: 1,
+  vocal: 2,
+  presidente: 3,
+  director: 4,
+};
+
+function hasRole(actual: AdminRole | undefined, required: AdminRole): boolean {
+  return actual ? ROLE_HIERARCHY[actual] >= ROLE_HIERARCHY[required] : false;
+}
+
+function assertSecureBootEnv() {
+  const missing: string[] = [];
+  if (!rawTursoUrl || !tursoToken) missing.push('TURSO_DATABASE_URL + TURSO_AUTH_TOKEN');
+  if (!ADMIN_SESSION_SECRET || ADMIN_SESSION_SECRET.length < 32) missing.push('ADMIN_SESSION_SECRET (>=32 chars)');
+  for (const [user, info] of Object.entries(ADMIN_USERS)) {
+    if (!info.passwordHash || !info.passwordHash.startsWith('$2')) {
+      missing.push(`${user.toUpperCase()}_PASS_HASH (bcrypt)`);
+    }
+  }
+  if (missing.length > 0) {
+    throw new Error(
+      `Configuracion insegura detectada. Faltan variables:\n  - ${missing.join('\n  - ')}\n` +
+      `Genera hashes con: npx tsx scripts/hash-password.ts <password>\n` +
+      `Genera secret con: node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"`
+    );
+  }
+}
+
+assertSecureBootEnv();
+
 if (!rawTursoUrl || !tursoToken) {
   throw new Error('Missing TURSO_DATABASE_URL or TURSO_AUTH_TOKEN in Netlify environment.');
 }
 
 async function checkPasswordForUser(pass: string, entry: AdminEntry): Promise<boolean> {
-  // Try bcrypt hash first if configured
-  if (entry.passwordHash) {
-    try {
-      if (await bcrypt.compare(pass, entry.passwordHash)) return true;
-    } catch {
-      // ignore malformed hash
-    }
+  if (!entry.passwordHash) return false;
+  try {
+    return await bcrypt.compare(pass, entry.passwordHash);
+  } catch {
+    return false;
   }
-  // Fallback to plain pass
-  const plain = entry.plainPass || ADMIN_PLAIN_PASS;
-  return safeEqual(pass, plain);
 }
 
 const tursoUrl = rawTursoUrl.replace(/^libsql:\/\//, 'https://');
@@ -87,6 +114,10 @@ function round2(value: number) {
   return Math.round(value * 100) / 100;
 }
 
+function calculateBaseContribution(income: number) {
+  return round2(Math.max(income, 0) * BASE_CONTRIBUTION_RATE);
+}
+
 function safeEqual(a: string, b: string) {
   const aBuffer = Buffer.from(a);
   const bBuffer = Buffer.from(b);
@@ -95,7 +126,7 @@ function safeEqual(a: string, b: string) {
 }
 
 function signSessionPayload(payloadBase64: string) {
-  return createHmac('sha256', ADMIN_SESSION_SECRET).update(payloadBase64).digest('base64url');
+  return createHmac('sha256', ADMIN_SESSION_SECRET!).update(payloadBase64).digest('base64url');
 }
 
 function createSessionToken(username: string) {
@@ -198,6 +229,7 @@ function cleanupRateMaps(now: number) {
 
 function normalizeInput(payload: any): CensusInput {
   const calidadVida = clamp(toNumber(payload.calidad_vida_escala, 5), 1, 10);
+  const ingresoIndividual = Math.max(toNumber(payload.ingreso_individual), 0);
 
   return {
     nombre_apellido: toText(payload.nombre_apellido),
@@ -211,10 +243,10 @@ function normalizeInput(payload: any): CensusInput {
     unidad_operativa: toText(payload.unidad_operativa) || null,
     anos_servicio: Math.max(toNumber(payload.anos_servicio), 0),
     cargo: toText(payload.cargo),
-    ingreso_individual: Math.max(toNumber(payload.ingreso_individual), 0),
+    ingreso_individual: ingresoIndividual,
     ingreso_familiar: Math.max(toNumber(payload.ingreso_familiar), 0),
     afiliado_cacref: Boolean(payload.afiliado_cacref),
-    capacidad_cuota: Math.max(toNumber(payload.capacidad_cuota), 0),
+    capacidad_cuota: calculateBaseContribution(ingresoIndividual),
     requiere_medicamento_cronico: Boolean(payload.requiere_medicamento_cronico),
     medicamento_detalle: toText(payload.medicamento_detalle) || null,
     requiere_cirugia: Boolean(payload.requiere_cirugia),
@@ -250,14 +282,8 @@ function evaluateApplicant(data: CensusInput) {
   const householdSupportRatio = income > 0 ? familyIncome / income : 1;
 
   const seniorityScore = clamp((years / 15) * 22, 0, 22);
-  const paymentCapacityScore = clamp((monthlyQuota / 420) * 28, 0, 28);
-
-  let affordabilityScore = 0;
-  if (affordabilityRatio >= 0.18 && affordabilityRatio <= 0.35) affordabilityScore = 24;
-  else if (affordabilityRatio > 0.35 && affordabilityRatio <= 0.45) affordabilityScore = 16;
-  else if (affordabilityRatio > 0.45 && affordabilityRatio <= 0.55) affordabilityScore = 8;
-  else if (affordabilityRatio >= 0.1 && affordabilityRatio < 0.18) affordabilityScore = 10;
-  else affordabilityScore = 2;
+  const paymentCapacityScore = income > 0 ? clamp((income / 1000) * 28, 0, 28) : 0;
+  const affordabilityScore = income > 0 && monthlyQuota > 0 ? 24 : 0;
 
   let healthNeedScore = 0;
   if (data.requiere_cirugia) healthNeedScore += 25;
@@ -513,6 +539,29 @@ function json(statusCode: number, payload: unknown, headers?: Record<string, str
   };
 }
 
+async function audit(event: any, actor: string, role: AdminRole, action: string, target_type?: string, target_id?: string | number, details?: any) {
+  try {
+    const ip = getClientIp(event);
+    const ua = String(event.headers?.['user-agent'] || event.headers?.['User-Agent'] || '').slice(0, 250) || null;
+    await db.execute({
+      sql: `INSERT INTO audit_log (actor, actor_role, action, target_type, target_id, details, ip, user_agent)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        actor,
+        role,
+        action,
+        target_type || null,
+        target_id != null ? String(target_id) : null,
+        details ? JSON.stringify(details).slice(0, 2000) : null,
+        ip,
+        ua,
+      ],
+    });
+  } catch (err) {
+    console.error('audit_log insert failed:', err);
+  }
+}
+
 export const handler = async (event: any) => {
   try {
     await initSchema();
@@ -537,6 +586,16 @@ export const handler = async (event: any) => {
     const isAdmin = session !== null;
     const currentUser = session ? ADMIN_USERS[session.username] : null;
 
+    const requireRole = (required: AdminRole) => {
+      if (!isAdmin || !session || !currentUser) {
+        return { ok: false as const, status: 401, body: { error: 'No autorizado', required } };
+      }
+      if (!hasRole(currentUser.role, required)) {
+        return { ok: false as const, status: 403, body: { error: 'Permisos insuficientes', required, actual: currentUser.role } };
+      }
+      return { ok: true as const };
+    };
+
     if (event.body && String(event.body).length > 6 * 1024 * 1024) {
       return json(413, { error: 'Payload demasiado grande' });
     }
@@ -552,15 +611,20 @@ export const handler = async (event: any) => {
       const entry = ADMIN_USERS[user];
       if (!entry || !(await checkPasswordForUser(pass, entry))) {
         registerLoginFailure(clientIp, now);
+        await audit(event, user || 'unknown', 'capturista', 'login_failed', 'admin', user, { reason: 'invalid_credentials' });
         return json(401, { error: 'Credenciales incorrectas' });
       }
       clearLoginFailures(clientIp);
       const token = createSessionToken(user);
       const cookie = `${ADMIN_COOKIE_NAME}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${ADMIN_SESSION_TTL_SECONDS}${isProd ? '; Secure' : ''}`;
+      await audit(event, user, entry.role, 'login_success', 'admin', user);
       return json(200, { success: true, user: { username: user, role: entry.role, name: entry.name } }, { 'Set-Cookie': cookie });
     }
 
     if (event.httpMethod === 'POST' && pathname === '/admin/logout') {
+      if (session && currentUser) {
+        await audit(event, session.username, currentUser.role, 'logout', 'admin', session.username);
+      }
       const cookie = `${ADMIN_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${isProd ? '; Secure' : ''}`;
       return json(200, { success: true }, { 'Set-Cookie': cookie });
     }
@@ -856,6 +920,7 @@ export const handler = async (event: any) => {
           WHERE id = ?`,
           args: [row.id],
         });
+        await audit(event, 'self_service', 'capturista', 'arco_cancel', 'submission', row.id, { cedula, derecho: 'Art. 25 LOPDP' });
         return json(200, {
           success: true,
           message: 'Sus datos personales han sido anonimizados conforme a la LOPDP.',
@@ -887,6 +952,7 @@ export const handler = async (event: any) => {
           sql: 'SELECT from_status, to_status, note, changed_at FROM workflow_history WHERE submission_id = ? ORDER BY changed_at ASC',
           args: [row.id],
         });
+        await audit(event, 'self_service', 'capturista', 'arco_export', 'submission', row.id, { cedula, derecho: 'Art. 25 LOPDP' });
         return json(200, {
           exportado_en: new Date().toISOString(),
           formato: 'JSON LOPDP Art. 25 (Portabilidad)',
@@ -1031,6 +1097,16 @@ export const handler = async (event: any) => {
         });
       }
 
+      const confirmationEmail = await sendCensusConfirmationEmail({
+        to: data.correo,
+        nombre: data.nombre_apellido,
+        cedula: data.cedula,
+        submissionId: newSubmissionId,
+        gerencia: data.gerencia,
+        aporteBase: data.capacidad_cuota,
+        filesAttached,
+      });
+
       return json(201, {
         success: true,
         id: newSubmissionId,
@@ -1038,11 +1114,13 @@ export const handler = async (event: any) => {
         recommendation: evaluation.recommendation,
         risk_level: evaluation.risk_level,
         files_attached: filesAttached,
+        email: confirmationEmail,
       });
     }
 
     if (event.httpMethod === 'GET' && pathname === '/admin/submissions') {
-      if (!isAdmin) return json(401, { error: 'No autorizado' });
+      const auth = requireRole('capturista');
+      if (!auth.ok) return json(auth.status, auth.body);
       const params = new URL(event.rawUrl).searchParams;
       const where: string[] = ['1=1'];
       const args: Array<string | number> = [];
@@ -1102,7 +1180,8 @@ export const handler = async (event: any) => {
     }
 
     if (event.httpMethod === 'GET' && pathname === '/admin/insights') {
-      if (!isAdmin) return json(401, { error: 'No autorizado' });
+      const auth = requireRole('capturista');
+      if (!auth.ok) return json(auth.status, auth.body);
       const rs = await db.execute(`
         SELECT
           COUNT(*) as total,
@@ -1119,18 +1198,23 @@ export const handler = async (event: any) => {
     }
 
     if (event.httpMethod === 'PATCH' && /^\/admin\/submissions\/\d+\/status$/.test(pathname)) {
-      if (!isAdmin) return json(401, { error: 'No autorizado' });
+      const auth = requireRole('capturista');
+      if (!auth.ok) return json(auth.status, auth.body);
       const id = Number(pathname.split('/')[3]);
       if (!id) return json(400, { error: 'Id invalido' });
       const payload = event.body ? JSON.parse(event.body) : {};
       const { status, note } = payload || {};
       const validStatuses = ['REGISTRADO', 'EN_REVISION', 'COMITE', 'RESUELTO', 'DESCARTADO'];
       if (!validStatuses.includes(status)) return json(400, { error: 'Estado invalido' });
+      if (currentUser!.role === 'capturista' && status !== 'EN_REVISION') {
+        return json(403, { error: 'Los capturistas solo pueden mover casos a EN_REVISION.' });
+      }
       const noteText = toText(note).slice(0, 500) || null;
 
       const current = await db.execute({ sql: 'SELECT workflow_status FROM census_submissions WHERE id = ?', args: [id] });
       if (!current.rows[0]) return json(404, { error: 'Registro no encontrado' });
       const now = new Date().toISOString();
+      const fromStatus = (current.rows[0] as any).workflow_status;
 
       await db.execute({
         sql: 'UPDATE census_submissions SET workflow_status = ?, workflow_notes = ?, workflow_updated_at = ? WHERE id = ?',
@@ -1138,13 +1222,15 @@ export const handler = async (event: any) => {
       });
       await db.execute({
         sql: 'INSERT INTO workflow_history (submission_id, from_status, to_status, note, changed_at) VALUES (?, ?, ?, ?, ?)',
-        args: [id, (current.rows[0] as any).workflow_status, status, noteText, now],
+        args: [id, fromStatus, status, noteText, now],
       });
+      await audit(event, session!.username, currentUser!.role, 'status_change', 'submission', id, { from: fromStatus, to: status });
       return json(200, { success: true, status, changed_at: now });
     }
 
     if (event.httpMethod === 'GET' && /^\/admin\/submissions\/\d+\/history$/.test(pathname)) {
-      if (!isAdmin) return json(401, { error: 'No autorizado' });
+      const auth = requireRole('capturista');
+      if (!auth.ok) return json(auth.status, auth.body);
       const id = Number(pathname.split('/')[3]);
       if (!id) return json(400, { error: 'Id invalido' });
       const rs = await db.execute({
@@ -1155,7 +1241,8 @@ export const handler = async (event: any) => {
     }
 
     if (event.httpMethod === 'GET' && /^\/admin\/submissions\/\d+\/comments$/.test(pathname)) {
-      if (!isAdmin) return json(401, { error: 'No autorizado' });
+      const auth = requireRole('capturista');
+      if (!auth.ok) return json(auth.status, auth.body);
       const id = Number(pathname.split('/')[3]);
       if (!id) return json(400, { error: 'Id invalido' });
       const rs = await db.execute({
@@ -1167,7 +1254,8 @@ export const handler = async (event: any) => {
 
     // Bulk import - simplified: accepts a JSON array of submissions
     if (event.httpMethod === 'POST' && pathname === '/admin/submissions/bulk-import') {
-      if (!isAdmin) return json(401, { error: 'No autorizado' });
+      const auth = requireRole('capturista');
+      if (!auth.ok) return json(auth.status, auth.body);
       try {
         const payload = event.body ? JSON.parse(event.body) : {};
         const items: any[] = Array.isArray(payload) ? payload : Array.isArray(payload?.rows) ? payload.rows : [];
@@ -1213,6 +1301,7 @@ export const handler = async (event: any) => {
             errorDetails.push({ row: i, error: String(e?.message || e) });
           }
         }
+        await audit(event, session!.username, currentUser!.role, 'bulk_import', 'submissions', null, { inserted, errors });
         return json(200, { success: true, inserted, errors, errorDetails: errorDetails.slice(0, 10) });
       } catch (err) {
         console.error('Bulk import error:', err);
@@ -1221,7 +1310,8 @@ export const handler = async (event: any) => {
     }
 
     if (event.httpMethod === 'POST' && /^\/admin\/submissions\/\d+\/comments$/.test(pathname)) {
-      if (!isAdmin) return json(401, { error: 'No autorizado' });
+      const auth = requireRole('vocal');
+      if (!auth.ok) return json(auth.status, auth.body);
       const id = Number(pathname.split('/')[3]);
       if (!id) return json(400, { error: 'Id invalido' });
       const payload = event.body ? JSON.parse(event.body) : {};
@@ -1231,18 +1321,20 @@ export const handler = async (event: any) => {
       if (!exists.rows[0]) return json(404, { error: 'Registro no encontrado' });
       const result = await db.execute({
         sql: 'INSERT INTO case_comments (submission_id, author, author_role, body) VALUES (?, ?, ?, ?)',
-        args: [id, session?.username || 'admin', currentUser?.role || 'director', body],
+        args: [id, session!.username, currentUser!.role, body],
       });
       const newId = Number(result.lastInsertRowid ?? 0);
       const created = await db.execute({
         sql: 'SELECT id, author, author_role, body, created_at FROM case_comments WHERE id = ?',
         args: [newId],
       });
+      await audit(event, session!.username, currentUser!.role, 'comment_added', 'submission', id, { snippet: body.slice(0, 100) });
       return json(201, (created.rows[0] as any) || {});
     }
 
     if (event.httpMethod === 'GET' && /^\/admin\/submissions\/\d+\/files$/.test(pathname)) {
-      if (!isAdmin) return json(401, { error: 'No autorizado' });
+      const auth = requireRole('capturista');
+      if (!auth.ok) return json(auth.status, auth.body);
       const id = Number(pathname.split('/')[3]);
       if (!id) return json(400, { error: 'Id invalido' });
       const rs = await db.execute({
@@ -1257,7 +1349,8 @@ export const handler = async (event: any) => {
     }
 
     if (event.httpMethod === 'POST' && /^\/admin\/submissions\/\d+\/attach$/.test(pathname)) {
-      if (!isAdmin) return json(401, { error: 'No autorizado' });
+      const auth = requireRole('capturista');
+      if (!auth.ok) return json(auth.status, auth.body);
       const id = Number(pathname.split('/')[3]);
       if (!id) return json(400, { error: 'Id invalido' });
       await db.execute({ sql: 'UPDATE census_submissions SET has_document = 1 WHERE id = ?', args: [id] });
@@ -1265,7 +1358,8 @@ export const handler = async (event: any) => {
     }
 
     if (event.httpMethod === 'POST' && /^\/admin\/submissions\/\d+\/detach$/.test(pathname)) {
-      if (!isAdmin) return json(401, { error: 'No autorizado' });
+      const auth = requireRole('capturista');
+      if (!auth.ok) return json(auth.status, auth.body);
       const id = Number(pathname.split('/')[3]);
       if (!id) return json(400, { error: 'Id invalido' });
       await db.execute({ sql: 'UPDATE census_submissions SET has_document = 0 WHERE id = ?', args: [id] });
@@ -1273,7 +1367,8 @@ export const handler = async (event: any) => {
     }
 
     if (event.httpMethod === 'GET' && pathname === '/admin/notifications') {
-      if (!isAdmin) return json(401, { error: 'No autorizado' });
+      const auth = requireRole('capturista');
+      if (!auth.ok) return json(auth.status, auth.body);
       const params = new URL(event.rawUrl).searchParams;
       const limit = clamp(toNumber(params.get('limit'), 20), 1, 100);
       const me = session?.username || 'admin';
@@ -1293,7 +1388,8 @@ export const handler = async (event: any) => {
     }
 
     if (event.httpMethod === 'PATCH' && /^\/admin\/notifications\/\d+\/read$/.test(pathname)) {
-      if (!isAdmin) return json(401, { error: 'No autorizado' });
+      const auth = requireRole('capturista');
+      if (!auth.ok) return json(auth.status, auth.body);
       const id = Number(pathname.split('/')[3]);
       if (!id) return json(400, { error: 'Id invalido' });
       await db.execute({
@@ -1304,7 +1400,8 @@ export const handler = async (event: any) => {
     }
 
     if (event.httpMethod === 'PATCH' && pathname === '/admin/notifications/read-all') {
-      if (!isAdmin) return json(401, { error: 'No autorizado' });
+      const auth = requireRole('capturista');
+      if (!auth.ok) return json(auth.status, auth.body);
       const me = session?.username || 'admin';
       await db.execute({
         sql: `UPDATE notifications SET read_at = ? WHERE user_target IN ('all', ?) AND read_at IS NULL`,
@@ -1314,8 +1411,8 @@ export const handler = async (event: any) => {
     }
 
     if (event.httpMethod === 'GET' && pathname === '/admin/audit') {
-      // Director only (single-role model in this demo)
-      if (!isAdmin) return json(401, { error: 'No autorizado' });
+      const auth = requireRole('director');
+      if (!auth.ok) return json(auth.status, auth.body);
       const params = new URL(event.rawUrl).searchParams;
       const actor = toText(params.get('actor'));
       const action = toText(params.get('action'));
@@ -1345,7 +1442,8 @@ export const handler = async (event: any) => {
     }
 
     if (event.httpMethod === 'GET' && pathname === '/admin/executive-summary') {
-      if (!isAdmin) return json(401, { error: 'No autorizado' });
+      const auth = requireRole('capturista');
+      if (!auth.ok) return json(auth.status, auth.body);
       const total = await db.execute('SELECT COUNT(*) as total FROM census_submissions');
       const porEstado = await db.execute("SELECT COALESCE(workflow_status, 'REGISTRADO') as workflow_status, COUNT(*) as count FROM census_submissions GROUP BY workflow_status");
       const porReco = await db.execute("SELECT COALESCE(recommendation, 'NO_ELEGIBLE') as recommendation, COUNT(*) as count FROM census_submissions GROUP BY recommendation");

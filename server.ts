@@ -7,7 +7,7 @@ import { createHmac, timingSafeEqual } from 'crypto';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { sendStatusEmail } from './src/lib/email';
+import { sendCensusConfirmationEmail, sendStatusEmail } from './src/lib/email';
 import multer from 'multer';
 import { randomBytes } from 'crypto';
 import bcrypt from 'bcryptjs';
@@ -59,6 +59,7 @@ const csvUpload = multer({
 
 type RiskLevel = 'BAJO' | 'MEDIO' | 'ALTO';
 type Recommendation = 'APROBADO_PRIORIDAD_ALTA' | 'APROBADO_CONDICIONAL' | 'REQUIERE_COMITE' | 'NO_ELEGIBLE';
+const BASE_CONTRIBUTION_RATE = 0.02;
 
 interface CensusInput {
   nombre_apellido: string;
@@ -87,20 +88,43 @@ interface CensusInput {
 const tursoUrl = process.env.TURSO_DATABASE_URL;
 const tursoToken = process.env.TURSO_AUTH_TOKEN;
 const useTurso = Boolean(tursoUrl);
-const ADMIN_SESSION_SECRET = process.env.ADMIN_SESSION_SECRET || 'change_this_secret_in_production';
+const isProductionRuntime = process.env.NODE_ENV === 'production';
+const ADMIN_SESSION_SECRET =
+  process.env.ADMIN_SESSION_SECRET ||
+  (isProductionRuntime ? undefined : 'dev-only-cacref-session-secret-change-before-production');
 const ADMIN_SESSION_TTL_SECONDS = 60 * 60 * 8; // 8h
 const ADMIN_COOKIE_NAME = 'admin_session';
 
 type AdminRole = 'capturista' | 'vocal' | 'presidente' | 'director';
 
-const DEMO_PASSWORD_HASH = '$2b$10$fETDCGLMEEKDNvqCikPtIejMQY90zD3nrAJTEq2Aot5tRbxebqSje';
-
 const ADMIN_USERS: Record<string, { passwordHash: string; role: AdminRole; name: string }> = {
-  admin: { passwordHash: process.env.ADMIN_PASS_HASH || DEMO_PASSWORD_HASH, role: 'director', name: 'Director General' },
-  presidente: { passwordHash: process.env.PRES_PASS_HASH || DEMO_PASSWORD_HASH, role: 'presidente', name: 'Presidente del Comite' },
-  vocal: { passwordHash: process.env.VOCAL_PASS_HASH || DEMO_PASSWORD_HASH, role: 'vocal', name: 'Vocal del Comite' },
-  capturista: { passwordHash: process.env.CAPT_PASS_HASH || DEMO_PASSWORD_HASH, role: 'capturista', name: 'Capturista' },
+  admin: { passwordHash: process.env.ADMIN_PASS_HASH || '', role: 'director', name: 'Director General' },
+  presidente: { passwordHash: process.env.PRES_PASS_HASH || '', role: 'presidente', name: 'Presidente del Comite' },
+  vocal: { passwordHash: process.env.VOCAL_PASS_HASH || '', role: 'vocal', name: 'Vocal del Comite' },
+  capturista: { passwordHash: process.env.CAPT_PASS_HASH || '', role: 'capturista', name: 'Capturista' },
 };
+
+function assertSecureBootEnv() {
+  if (!isProductionRuntime) {
+    return;
+  }
+  const missing: string[] = [];
+  if (!ADMIN_SESSION_SECRET || ADMIN_SESSION_SECRET.length < 32) {
+    missing.push('ADMIN_SESSION_SECRET (>=32 chars)');
+  }
+  for (const [user, info] of Object.entries(ADMIN_USERS)) {
+    if (!info.passwordHash || !info.passwordHash.startsWith('$2')) {
+      missing.push(`${user.toUpperCase().replace('CAPT', 'CAPT')}_PASS_HASH (bcrypt)`);
+    }
+  }
+  if (missing.length > 0) {
+    throw new Error(
+      `Configuracion insegura detectada. Faltan o son invalidas las siguientes variables de entorno:\n  - ${missing.join('\n  - ')}\n` +
+      `Genera los hashes con: npx tsx scripts/hash-password.ts <password>\n` +
+      `Genera el secret con: node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"`
+    );
+  }
+}
 
 const ROLE_HIERARCHY: Record<AdminRole, number> = {
   capturista: 1,
@@ -140,6 +164,10 @@ function round2(value: number) {
   return Math.round(value * 100) / 100;
 }
 
+function calculateBaseContribution(income: number) {
+  return round2(Math.max(income, 0) * BASE_CONTRIBUTION_RATE);
+}
+
 function safeEqual(a: string, b: string) {
   const aBuffer = Buffer.from(a);
   const bBuffer = Buffer.from(b);
@@ -148,7 +176,7 @@ function safeEqual(a: string, b: string) {
 }
 
 function signSessionPayload(payloadBase64: string) {
-  return createHmac('sha256', ADMIN_SESSION_SECRET).update(payloadBase64).digest('base64url');
+  return createHmac('sha256', ADMIN_SESSION_SECRET!).update(payloadBase64).digest('base64url');
 }
 
 function createSessionToken(username: string, role: AdminRole) {
@@ -194,7 +222,7 @@ function normalizeInput(payload: any): CensusInput {
   const anosServicio = Math.max(toNumber(payload.anos_servicio), 0);
   const ingresoIndividual = Math.max(toNumber(payload.ingreso_individual), 0);
   const ingresoFamiliar = Math.max(toNumber(payload.ingreso_familiar), 0);
-  const capacidadCuota = Math.max(toNumber(payload.capacidad_cuota), 0);
+  const capacidadCuota = calculateBaseContribution(ingresoIndividual);
   const calidadVida = clamp(toNumber(payload.calidad_vida_escala, 5), 1, 10);
 
   return {
@@ -254,14 +282,8 @@ function evaluateApplicant(data: CensusInput) {
   const householdSupportRatio = income > 0 ? familyIncome / income : 1;
 
   const seniorityScore = clamp((years / 15) * 22, 0, 22);
-  const paymentCapacityScore = clamp((monthlyQuota / 420) * 28, 0, 28);
-
-  let affordabilityScore = 0;
-  if (affordabilityRatio >= 0.18 && affordabilityRatio <= 0.35) affordabilityScore = 24;
-  else if (affordabilityRatio > 0.35 && affordabilityRatio <= 0.45) affordabilityScore = 16;
-  else if (affordabilityRatio > 0.45 && affordabilityRatio <= 0.55) affordabilityScore = 8;
-  else if (affordabilityRatio >= 0.1 && affordabilityRatio < 0.18) affordabilityScore = 10;
-  else affordabilityScore = 2;
+  const paymentCapacityScore = income > 0 ? clamp((income / 1000) * 28, 0, 28) : 0;
+  const affordabilityScore = income > 0 && monthlyQuota > 0 ? 24 : 0;
 
   let healthNeedScore = 0;
   if (data.requiere_cirugia) healthNeedScore += 25;
@@ -593,6 +615,7 @@ async function backfillEvaluations() {
 }
 
 async function startServer() {
+  assertSecureBootEnv();
   await initDatabase();
   await backfillEvaluations();
 
@@ -611,6 +634,13 @@ async function startServer() {
       'Strict-Transport-Security',
       'max-age=31536000; includeSubDomains'
     );
+    if (isProd) {
+      res.setHeader(
+        'Content-Security-Policy',
+        "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' https://*.googletagmanager.com; connect-src 'self' https://*.turso.io wss://*.turso.io; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+      );
+      res.setHeader('Cache-Control', 'no-store');
+    }
     next();
   });
 
@@ -808,7 +838,7 @@ async function startServer() {
     const user = toText(req.body?.user);
     const pass = toText(req.body?.pass);
     const entry = ADMIN_USERS[user];
-    if (!entry || !(await bcrypt.compare(pass, entry.passwordHash))) {
+    if (!entry || !entry.passwordHash || !(await bcrypt.compare(pass, entry.passwordHash))) {
       logAudit({ req, actor: user || 'unknown', role: 'capturista', action: 'login_failed', details: { user } });
       res.status(401).json({ error: 'Credenciales incorrectas' });
       return;
@@ -883,7 +913,7 @@ async function startServer() {
       };
 
       const header = parseRow(lines[0]).map(h => h.trim().toLowerCase());
-      const requiredCols = ['nombre_apellido', 'cedula', 'telefono', 'correo', 'gerencia', 'anos_servicio', 'cargo', 'ingreso_individual', 'ingreso_familiar', 'capacidad_cuota', 'calidad_vida_escala'];
+      const requiredCols = ['nombre_apellido', 'cedula', 'telefono', 'correo', 'gerencia', 'anos_servicio', 'cargo', 'ingreso_individual', 'ingreso_familiar', 'calidad_vida_escala'];
       const missing = requiredCols.filter(c => !header.includes(c));
       if (missing.length > 0) {
         fs.unlinkSync(req.file.path);
@@ -1225,6 +1255,16 @@ async function startServer() {
         );
       }
 
+      const confirmationEmail = await sendCensusConfirmationEmail({
+        to: data.correo,
+        nombre: data.nombre_apellido,
+        cedula: data.cedula,
+        submissionId: newId,
+        gerencia: data.gerencia,
+        aporteBase: data.capacidad_cuota,
+        filesAttached: attachments.length,
+      });
+
       res.status(201).json({
         success: true,
         id: newId,
@@ -1232,6 +1272,7 @@ async function startServer() {
         recommendation: evaluation.recommendation,
         risk_level: evaluation.risk_level,
         files_attached: attachments.length,
+        email: confirmationEmail,
       });
     } catch (error: any) {
       if (String(error?.message || '').toLowerCase().includes('unique')) {
@@ -1802,6 +1843,35 @@ async function startServer() {
             priority_bucket = 4
           WHERE id = ?
         `).run(row.id);
+      } else {
+        await runSql(
+          `UPDATE census_submissions SET
+            nombre_apellido = 'ELIMINADO',
+            telefono = 'ELIMINADO',
+            correo = 'ELIMINADO',
+            region_sede = 'ELIMINADO',
+            vicepresidencia = NULL,
+            direccion_ejecutiva = NULL,
+            gerencia = 'ELIMINADO',
+            unidad_operativa = NULL,
+            cargo = 'ELIMINADO',
+            anos_servicio = 0,
+            ingreso_individual = 0,
+            ingreso_familiar = 0,
+            capacidad_cuota = 0,
+            medicamento_detalle = NULL,
+            cirugia_detalle = NULL,
+            workflow_notes = NULL,
+            decision_observaciones = NULL,
+            assigned_to = NULL,
+            workflow_status = 'DESCARTADO',
+            score = 0,
+            risk_level = NULL,
+            recommendation = 'NO_ELEGIBLE',
+            priority_bucket = 4
+          WHERE id = ?`,
+          [row.id]
+        );
       }
 
       res.json({
@@ -1995,6 +2065,30 @@ async function startServer() {
     console.log(`Server running on http://localhost:${PORT}`);
     console.log(`Database mode: ${useTurso ? 'Turso (libsql)' : 'Local SQLite file'}`);
   });
+
+  const PURGE_INTERVAL_MS = 10 * 60 * 1000;
+  setInterval(() => {
+    const now = Date.now();
+    let purgedActivity = 0;
+    for (const [token, ts] of lastActivity.entries()) {
+      if (!token || now - ts > SESSION_IDLE_TIMEOUT_MS) {
+        lastActivity.delete(token);
+        purgedActivity++;
+      }
+    }
+    let purgedLimits = 0;
+    for (const [key, entry] of rateLimits.entries()) {
+      const windowExpired = now - entry.first > 60 * 60 * 1000;
+      const blockExpired = !entry.blockedUntil || now >= entry.blockedUntil;
+      if (windowExpired && blockExpired) {
+        rateLimits.delete(key);
+        purgedLimits++;
+      }
+    }
+    if (purgedActivity > 0 || purgedLimits > 0) {
+      console.log(`[purge] removed ${purgedActivity} idle sessions, ${purgedLimits} expired rate-limit entries`);
+    }
+  }, PURGE_INTERVAL_MS).unref();
 }
 
 startServer().catch((error) => {

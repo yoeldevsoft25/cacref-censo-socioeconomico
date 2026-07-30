@@ -22,9 +22,21 @@ import { MapPin, Loader2 } from 'lucide-react';
 const STEPS = [
   { id: 'personal', title: 'Datos Personales', subtitle: 'Información de contacto', icon: User },
   { id: 'vinculacion', title: 'Vinculación CACREF', subtitle: 'Datos laborales e institucionales', icon: Briefcase },
-  { id: 'socioeconomico', title: 'Situación Económica', subtitle: 'Ingresos y capacidad de aporte', icon: CreditCard },
+  { id: 'socioeconomico', title: 'Situación Económica', subtitle: 'Ingresos y aporte base 2%', icon: CreditCard },
   { id: 'salud', title: 'Salud y Calidad de Vida', subtitle: 'Necesidades médicas y bienestar', icon: HeartPulse },
 ];
+
+const BASE_CONTRIBUTION_RATE = 0.02;
+
+function calculateBaseContribution(value: string | number) {
+  const income = Number(value);
+  if (!Number.isFinite(income) || income <= 0) return 0;
+  return Math.round(income * BASE_CONTRIBUTION_RATE * 100) / 100;
+}
+
+function formatMoneyValue(value: number) {
+  return value.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 
 interface VinculacionStepProps {
   formData: any;
@@ -404,6 +416,16 @@ export default function CensusForm() {
     },
   });
 
+  const aporteBaseCalculado = useMemo(
+    () => calculateBaseContribution(formData.ingreso_individual),
+    [formData.ingreso_individual]
+  );
+
+  useEffect(() => {
+    const nextValue = aporteBaseCalculado > 0 ? aporteBaseCalculado.toFixed(2) : '';
+    setFormData((prev) => (prev.capacidad_cuota === nextValue ? prev : { ...prev, capacidad_cuota: nextValue }));
+  }, [aporteBaseCalculado]);
+
   const setAttachment = (key: 'cedula' | 'medicamento' | 'cirugia' | 'familiar', file: UploadedFile | null) => {
     setFormData((prev) => ({ ...prev, attachments: { ...prev.attachments, [key]: file } }));
   };
@@ -423,7 +445,7 @@ export default function CensusForm() {
     const step = STEPS[currentStep].id;
     if (step === 'personal') return hasText(formData.nombre_apellido) && hasText(formData.cedula) && hasText(formData.telefono) && hasText(formData.correo) && !!formData.attachments.cedula;
     if (step === 'vinculacion') return hasText(formData.gerencia) && hasText(formData.anos_servicio) && hasText(formData.cargo);
-    if (step === 'socioeconomico') return hasText(formData.ingreso_individual) && hasText(formData.ingreso_familiar) && hasText(formData.capacidad_cuota);
+    if (step === 'socioeconomico') return hasText(formData.ingreso_individual) && hasText(formData.ingreso_familiar);
     if (step === 'salud') {
       if (formData.requiere_medicamento_cronico && !hasText(formData.medicamento_detalle)) return false;
       if (formData.requiere_cirugia && !hasText(formData.cirugia_detalle)) return false;
@@ -463,7 +485,7 @@ export default function CensusForm() {
           anos_servicio: parseInt(formData.anos_servicio),
           ingreso_individual: parseFloat(formData.ingreso_individual),
           ingreso_familiar: parseFloat(formData.ingreso_familiar),
-          capacidad_cuota: parseFloat(formData.capacidad_cuota),
+          capacidad_cuota: aporteBaseCalculado,
           calidad_vida_escala: parseInt(formData.calidad_vida_escala),
         }),
       });
@@ -655,11 +677,21 @@ export default function CensusForm() {
                       </div>
                     </div>
                     <div className="sm:col-span-2">
-                      <Label>Capacidad de Aporte Mensual ($) *</Label>
+                      <Label>Aporte base estimado 2% ($)</Label>
                       <div className="relative group max-w-sm">
                         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><span className="text-red-500 font-bold text-sm">$</span></div>
-                        <input type="number" name="capacidad_cuota" min="0" step="0.01" value={formData.capacidad_cuota} onChange={handleInputChange} className={moneyInputCls} placeholder="0.00" />
+                        <input
+                          type="text"
+                          name="capacidad_cuota"
+                          value={aporteBaseCalculado > 0 ? formatMoneyValue(aporteBaseCalculado) : '0.00'}
+                          readOnly
+                          className={`${moneyInputCls} bg-slate-50 text-slate-700 cursor-not-allowed`}
+                          aria-describedby="aporte-base-help"
+                        />
                       </div>
+                      <p id="aporte-base-help" className="mt-2 text-xs leading-relaxed text-slate-500">
+                        Se calcula automáticamente como el 2% del ingreso individual. Préstamos o programas especiales se calculan luego según política, topes y aprobación.
+                      </p>
                     </div>
                   </div>
                 )}

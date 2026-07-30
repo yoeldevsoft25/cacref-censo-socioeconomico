@@ -32,7 +32,7 @@ export default function PrivacyPage() {
             <p className="text-sm text-slate-700 leading-relaxed mt-2">
               <strong>Responsable de proteccion de datos:</strong> Oficina de Cumplimiento CACREF
               <br />
-              <strong>Correo de contacto:</strong> protecciondedatos@cacref.example.com
+              <strong>Correo de contacto:</strong> protecciondedatos@futpvcacref.com
             </p>
           </section>
 
@@ -78,7 +78,7 @@ export default function PrivacyPage() {
             <ul className="text-sm text-slate-700 list-disc pl-5 space-y-1">
               <li><strong>Identificacion:</strong> nombre y apellido, cedula, telefono, correo electronico</li>
               <li><strong>Vinculacion institucional:</strong> gerencia, unidad operativa, cargo, anos de servicio</li>
-              <li><strong>Situacion socioeconomica:</strong> ingreso individual y familiar, capacidad de aporte</li>
+              <li><strong>Situacion socioeconomica:</strong> ingreso individual y familiar, aporte base calculado al 2%</li>
               <li><strong>Salud (sensibles):</strong> requerimiento de medicamentos, cirugias, asistencia familiar, calidad de vida autoevaluada</li>
               <li><strong>Documentos adjuntos:</strong> copia de cedula, recetas medicas, informes (cuando aplica)</li>
             </ul>
@@ -135,7 +135,7 @@ export default function PrivacyPage() {
             <ol className="text-sm text-slate-700 list-decimal pl-5 space-y-1 mt-1">
               <li>Vaya a la seccion <Link to="/consulta" className="text-red-600 underline">Consulta de estado</Link> e ingrese su cedula</li>
               <li>Use los botones "Descargar mis datos" o "Solicitar eliminacion" disponibles ahi</li>
-              <li>O envie un correo a protecciondedatos@cacref.example.com con su cedula y solicitud</li>
+              <li>O envie un correo a protecciondedatos@futpvcacref.com con su cedula y solicitud</li>
             </ol>
             <p className="text-sm text-slate-700 leading-relaxed mt-3">
               <strong>Plazo de respuesta:</strong> 15 dias habiles conforme al articulo 31 de la LOPDP.
@@ -202,7 +202,7 @@ export default function PrivacyPage() {
               12. Revocacion del consentimiento
             </h2>
             <p className="text-sm text-slate-700 leading-relaxed">
-              Usted puede revocar su consentimiento en cualquier momento sin efectos retroactivos. La revocacion no afectara la licitud del tratamiento previo. Para revocar, contactenos a protecciondedatos@cacref.example.com.
+              Usted puede revocar su consentimiento en cualquier momento sin efectos retroactivos. La revocacion no afectara la licitud del tratamiento previo. Para revocar, contactenos a protecciondedatos@futpvcacref.com.
             </p>
           </section>
 

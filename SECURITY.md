@@ -121,6 +121,6 @@ In case of a security breach:
 
 ## Security Contact
 
-For security issues, contact: `seguridad@cacref.example.com`
+For security issues, contact: `seguridad@futpvcacref.com`
 
-For data protection inquiries: `protecciondedatos@cacref.example.com`
+For data protection inquiries: `protecciondedatos@futpvcacref.com`

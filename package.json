@@ -1,15 +1,20 @@
 {
-  "name": "react-example",
+  "name": "cacref-salud",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "CACREF - Censo Socioeconomico y de Salud (LOPDP Venezuela 2021)",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "tsx server.ts",
     "start": "tsx server.ts",
     "build": "vite build",
     "preview": "vite preview",
-    "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",

@@ -71,20 +71,10 @@ export default function AdminLogin({ onLogin }: AdminLoginProps) {
                             <h1 className="text-2xl font-display font-bold text-slate-900 tracking-tight">
                                 Acceso Administrativo
                             </h1>
-                        <p className="text-sm text-slate-500 mt-1 text-center">
-                            Panel de gestion exclusivo. Solo personal autorizado.
-                        </p>
-                    </div>
-
-                    <div className="mb-5 p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-600">
-                        <p className="font-semibold text-slate-700 mb-1.5">Usuarios de demo (clave: censo2025)</p>
-                        <ul className="space-y-0.5 font-mono text-[10px]">
-                            <li><strong>admin</strong> &middot; Director</li>
-                            <li><strong>presidente</strong> &middot; Presidente del comite</li>
-                            <li><strong>vocal</strong> &middot; Vocal del comite</li>
-                            <li><strong>capturista</strong> &middot; Capturista (solo lectura)</li>
-                        </ul>
-                    </div>
+<p className="text-sm text-slate-500 mt-1 text-center">
+                                Panel de gestion exclusivo. Solo personal autorizado.
+                            </p>
+                        </div>
 
                         {/* Error message */}
                         {error && (
