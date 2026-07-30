@@ -556,126 +556,112 @@ export default function AdminDashboard({ user }: { user?: { username: string; ro
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200">
-            <thead className="bg-slate-50">
-              <tr>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Postulante</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  <div className="flex items-center gap-1"><Briefcase className="h-4 w-4" /> Perfil Laboral</div>
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  <div className="flex items-center gap-1"><DollarSign className="h-4 w-4" /> Capacidad</div>
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  <div className="flex items-center gap-1"><HeartPulse className="h-4 w-4" /> Salud</div>
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  <div className="flex items-center gap-1"><Star className="h-4 w-4" /> Score</div>
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Decision</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Estado</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-slate-200">
-              {loading ? (
-                <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-slate-500">Cargando datos...</td>
-                </tr>
-              ) : submissions.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-slate-500">No se encontraron registros con los filtros actuales.</td>
-                </tr>
-              ) : (
-                submissions.map((sub) => {
-                  const hasMedication = Boolean(sub.requiere_medicamento_cronico);
-                  const hasSurgery = Boolean(sub.requiere_cirugia);
-                  const hasFamilySupport = Boolean(sub.familiar_requiere_asistencia);
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-visible">
+        <div className="border-b border-slate-100 bg-slate-50 px-4 py-3">
+          <div className="grid grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)_auto] gap-4 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            <span>Postulante</span>
+            <span className="hidden md:flex items-center gap-1"><Briefcase className="h-3.5 w-3.5" /> Laboral</span>
+            <span className="hidden lg:flex items-center gap-1"><DollarSign className="h-3.5 w-3.5" /> Aporte</span>
+            <span>Acciones</span>
+          </div>
+        </div>
 
-                  return (
-                    <tr key={sub.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <div className="text-sm font-medium text-slate-900">{sub.nombre_apellido}</div>
-                          {sub.has_document ? <FileText className="w-3.5 h-3.5 text-emerald-600" /> : null}
-                        </div>
-                        <div className="text-sm text-slate-500">CI: {sub.cedula}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-slate-900">{sub.gerencia}</div>
-                        <div className="text-sm text-slate-500">{sub.anos_servicio} anos de servicio</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-slate-900">Ingreso: {formatMoney(sub.ingreso_individual)}</div>
-                        <div className="text-sm text-slate-500">Aporte base 2%: {formatMoney(sub.capacidad_cuota)}</div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex flex-wrap gap-1.5">
-                          {hasMedication && <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Medicamento</span>}
-                          {hasSurgery && <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">Cirugia</span>}
-                          {hasFamilySupport && <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">Familiar</span>}
-                          {!hasMedication && !hasSurgery && !hasFamilySupport && (
-                            <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">Sin alerta</span>
-                          )}
-                        </div>
-                        <div className="text-xs text-slate-500 mt-2">Calidad de vida: {toNumber(sub.calidad_vida_escala, 5)}/10</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <span className="text-lg font-bold text-red-700">{toNumber(sub.score).toFixed(1)}</span>
-                          <span className="text-xs text-slate-400 ml-1">/ 100</span>
-                        </div>
-                        <div className="w-full bg-slate-200 rounded-full h-1.5 mt-2">
-                          <div className="bg-red-600 h-1.5 rounded-full" style={{ width: `${Math.min(toNumber(sub.score), 100)}%` }} />
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${recommendationClass(sub.recommendation)}`}>
-                            {recommendationLabel(sub.recommendation)}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedSubmission(sub)}
-                            className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-slate-300 bg-white text-slate-600 hover:text-red-700 hover:border-red-300 transition-colors"
-                            aria-label="Ver detalle"
-                            title="Ver detalle"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                        </div>
-                        <div className="mt-2 text-xs text-slate-500 flex items-center gap-2 flex-wrap">
-                          <span>
-                            Riesgo:{' '}
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded ${riskClass(sub.risk_level)}`}>
-                              {sub.risk_level || 'N/D'}
-                            </span>
-                          </span>
-                          <SlaBadge days={toNumber(sub.days_in_state, 0)} status={sub.workflow_status || 'REGISTRADO'} sla={sub.sla} />
-                        </div>
-                        {sub.assigned_to && (
-                          <div className="mt-1.5 text-[10px] text-slate-500 flex items-center gap-1">
-                            <UserCheck className="w-3 h-3" />
-                            {sub.assigned_to}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <WorkflowStatusControl
-                          submissionId={sub.id}
-                          status={sub.workflow_status || 'REGISTRADO'}
-                          currentAssignee={sub.assigned_to}
-                          hasDecision={Boolean(sub.decision_tipo)}
-                          onChange={fetchDashboard}
-                        />
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+        <div className="divide-y divide-slate-100">
+          {loading ? (
+            <div className="px-6 py-12 text-center text-slate-500">Cargando datos...</div>
+          ) : submissions.length === 0 ? (
+            <div className="px-6 py-12 text-center text-slate-500">No se encontraron registros con los filtros actuales.</div>
+          ) : (
+            submissions.map((sub) => {
+              const hasMedication = Boolean(sub.requiere_medicamento_cronico);
+              const hasSurgery = Boolean(sub.requiere_cirugia);
+              const hasFamilySupport = Boolean(sub.familiar_requiere_asistencia);
+              const score = toNumber(sub.score);
+
+              return (
+                <div key={sub.id} className="grid grid-cols-1 gap-4 px-4 py-4 transition-colors hover:bg-slate-50 lg:grid-cols-[minmax(220px,1.5fr)_minmax(180px,1fr)_minmax(170px,1fr)_minmax(170px,1fr)_minmax(170px,auto)] lg:items-center">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate text-sm font-semibold text-slate-900">{sub.nombre_apellido}</p>
+                      {sub.has_document ? <FileText className="h-3.5 w-3.5 shrink-0 text-emerald-600" /> : null}
+                    </div>
+                    <p className="mt-0.5 text-xs text-slate-500">CI: {sub.cedula}</p>
+                  </div>
+
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-slate-900">{sub.gerencia}</p>
+                    <p className="text-xs text-slate-500">{sub.anos_servicio} años de servicio</p>
+                  </div>
+
+                  <div>
+                    <p className="text-sm font-medium text-slate-900">Ingreso: {formatMoney(sub.ingreso_individual)}</p>
+                    <p className="text-xs text-slate-500">Aporte base 2%: {formatMoney(sub.capacidad_cuota)}</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap gap-1.5">
+                      {hasMedication && <span className="inline-flex rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-medium text-red-800">Medicamento</span>}
+                      {hasSurgery && <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">Cirugía</span>}
+                      {hasFamilySupport && <span className="inline-flex rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-medium text-blue-800">Familiar</span>}
+                      {!hasMedication && !hasSurgery && !hasFamilySupport && (
+                        <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">Sin alerta</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500">Calidad de vida: {toNumber(sub.calidad_vida_escala, 5)}/10</p>
+                  </div>
+
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between lg:flex-col lg:items-stretch lg:justify-center">
+                    <div className="min-w-[120px]">
+                      <div className="flex items-center gap-1">
+                        <span className="text-lg font-bold text-red-700">{score.toFixed(1)}</span>
+                        <span className="text-xs text-slate-400">/ 100</span>
+                      </div>
+                      <div className="mt-1.5 h-1.5 w-full rounded-full bg-slate-200">
+                        <div className="h-1.5 rounded-full bg-red-600" style={{ width: `${Math.min(score, 100)}%` }} />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${recommendationClass(sub.recommendation)}`}>
+                        {recommendationLabel(sub.recommendation)}
+                      </span>
+                      <span className={`inline-flex items-center rounded px-2 py-0.5 text-[11px] font-semibold ${riskClass(sub.risk_level)}`}>
+                        {sub.risk_level || 'N/D'}
+                      </span>
+                      <SlaBadge days={toNumber(sub.days_in_state, 0)} status={sub.workflow_status || 'REGISTRADO'} sla={sub.sla} />
+                    </div>
+
+                    {sub.assigned_to && (
+                      <div className="flex items-center gap-1 text-[11px] text-slate-500">
+                        <UserCheck className="h-3 w-3" />
+                        <span className="truncate">{sub.assigned_to}</span>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2">
+                      <WorkflowStatusControl
+                        submissionId={sub.id}
+                        status={sub.workflow_status || 'REGISTRADO'}
+                        currentAssignee={sub.assigned_to}
+                        hasDecision={Boolean(sub.decision_tipo)}
+                        onChange={fetchDashboard}
+                        align="left"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setSelectedSubmission(sub)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 transition-colors hover:border-red-300 hover:text-red-700"
+                        aria-label="Ver detalle"
+                        title="Ver detalle"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
         <div className="px-4 py-3 border-t border-slate-100">
           <Pagination page={page} totalPages={totalPages} total={total} onPageChange={setPage} />

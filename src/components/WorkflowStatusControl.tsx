@@ -11,9 +11,10 @@ interface Props {
   currentAssignee?: string | null;
   hasDecision?: boolean;
   onChange: () => void;
+  align?: 'left' | 'right';
 }
 
-export default function WorkflowStatusControl({ submissionId, status, currentAssignee, hasDecision, onChange }: Props) {
+export default function WorkflowStatusControl({ submissionId, status, currentAssignee, hasDecision, onChange, align = 'right' }: Props) {
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState<WorkflowStatus | null>(null);
   const [note, setNote] = useState('');
@@ -107,7 +108,7 @@ export default function WorkflowStatusControl({ submissionId, status, currentAss
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -8, scale: 0.96 }}
               transition={{ duration: 0.15 }}
-              className="absolute z-50 mt-2 right-0 w-80 bg-white rounded-xl border border-slate-200 shadow-2xl p-3"
+              className={`absolute z-50 mt-2 w-[min(20rem,calc(100vw-2rem))] bg-white rounded-xl border border-slate-200 shadow-2xl p-3 ${align === 'left' ? 'left-0' : 'right-0'}`}
             >
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-semibold text-slate-700">Cambiar estado</span>
